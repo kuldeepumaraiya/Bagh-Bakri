@@ -4,8 +4,6 @@ import { IdeasPage } from './components/IdeasPage';
 import { GameSetup } from './components/GameSetup';
 import { MathWallGame } from './components/MathWallGame';
 import type { GameSetupConfig } from './types';
-import { Brain, Compass } from 'lucide-react';
-
 
 type PageState = 'home' | 'ideas' | 'setup' | 'game';
 
@@ -19,113 +17,62 @@ function App() {
   };
 
   return (
-    <div className="flex-1 flex flex-col justify-between min-h-screen">
-      {/* 1. Universal Top Navigation Bar */}
-      <header className="sticky top-0 z-50 bg-slate-900/80 backdrop-blur-md border-b border-slate-800/85 px-6 py-4 flex items-center justify-between shadow-md">
-        {/* Left: Logo */}
-        <div 
+    <div className="flex-1 flex flex-col min-h-screen">
+      {/* Header */}
+      <header className="sticky top-0 z-50 bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between">
+        <button
           onClick={() => setPage('home')}
-          className="flex items-center gap-2.5 cursor-pointer group active:scale-95 transition-all"
+          className="flex items-center gap-2 font-bold text-slate-800 hover:text-emerald-600 transition-colors"
         >
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20 group-hover:scale-105 duration-200">
-            <Brain className="w-5.5 h-5.5" />
-          </div>
-          <div className="text-left">
-            <span className="font-black text-slate-100 tracking-tight text-lg block leading-none">
-              STEM Bagh-Bakri
-            </span>
-            <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-widest block mt-0.5">
-              LAB EDITION
-            </span>
-          </div>
-        </div>
+          <span className="text-xl">🎯</span>
+          <span className="text-base font-bold tracking-tight">STEM Bagh-Bakri</span>
+          <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">LAB</span>
+        </button>
 
-        {/* Right: Main Navigation Actions */}
-        <nav className="flex items-center gap-2 md:gap-4 text-xs md:text-sm font-bold">
+        <nav className="flex items-center gap-1 text-sm font-semibold">
           <button
             onClick={() => setPage('home')}
-            className={`px-3 py-1.5 rounded-lg transition-all ${
-              page === 'home' 
-                ? 'bg-slate-800 text-indigo-400 border border-slate-700/80 shadow-inner' 
-                : 'text-slate-300 hover:text-slate-100'
+            className={`px-3 py-1.5 rounded-lg transition-colors ${
+              page === 'home' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
             }`}
           >
             Home
           </button>
           <button
             onClick={() => setPage('ideas')}
-            className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg transition-colors ${
               page === 'ideas' || page === 'setup' || page === 'game'
-                ? 'bg-slate-800 text-indigo-400 border border-slate-700/80 shadow-inner' 
-                : 'text-slate-300 hover:text-slate-100'
+                ? 'bg-slate-100 text-slate-800'
+                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
             }`}
           >
-            <Compass className="w-4 h-4 shrink-0" />
-            <span>Game Library</span>
+            Game Library
           </button>
         </nav>
       </header>
 
-      {/* 2. Main Page Render viewport */}
-      <main className="flex-1 w-full flex flex-col relative">
-        {page === 'home' && (
-          <HomePage onNavigate={setPage} />
-        )}
-        
+      {/* Main */}
+      <main className="flex-1 w-full flex flex-col">
+        {page === 'home' && <HomePage onNavigate={setPage} />}
         {page === 'ideas' && (
-          <IdeasPage 
-            onNavigateHome={() => setPage('home')} 
-            onPlayGame={(id) => {
-              if (id === 1) {
-                setPage('setup');
-              }
-            }} 
+          <IdeasPage
+            onNavigateHome={() => setPage('home')}
+            onPlayGame={(id) => { if (id === 1) setPage('setup'); }}
           />
         )}
-
         {page === 'setup' && (
-          <GameSetup 
-            onBack={() => setPage('ideas')} 
-            onStartGame={handleStartGame} 
-          />
+          <GameSetup onBack={() => setPage('ideas')} onStartGame={handleStartGame} />
         )}
-
         {page === 'game' && gameConfig && (
-          <MathWallGame 
-            config={gameConfig} 
-            onChangeSetup={() => setPage('setup')} 
-          />
+          <MathWallGame config={gameConfig} onChangeSetup={() => setPage('setup')} />
         )}
       </main>
 
-      {/* 3. Universal Classroom Resources Footer */}
-      <footer className="border-t border-slate-800/80 bg-slate-950/40 py-8 px-6 text-center text-xs text-slate-500 space-y-4">
-        <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          {/* Brand details */}
-          <div className="text-left space-y-1">
-            <span className="font-bold text-slate-400 block">STEM Bagh-Bakri Lab</span>
-            <p className="text-[11px] text-slate-500">
-              Integrating cultural board games with mathematics, spatial logic, and strategic collaboration.
-            </p>
-          </div>
-
-          {/* Core STEM Badging */}
-          <div className="flex gap-2">
-            <span className="px-2 py-1 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-bold uppercase tracking-wider text-[9px]">
-              Addition
-            </span>
-            <span className="px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold uppercase tracking-wider text-[9px]">
-              Inequalities
-            </span>
-            <span className="px-2 py-1 rounded bg-violet-500/10 text-violet-400 border border-violet-500/20 font-bold uppercase tracking-wider text-[9px]">
-              Spatial Logic
-            </span>
-          </div>
-        </div>
-
-        <div className="border-t border-slate-900 pt-4 text-[11px] text-slate-500">
-          © {new Date().getFullYear()} STEM Bagh-Bakri Lab. Built for primary strategy education and classroom teamwork. No cookies, no trackers. 100% run in-browser.
-        </div>
+      {/* Footer */}
+      <footer className="border-t border-slate-200 py-6 px-6 text-center">
+        <p className="text-xs text-slate-400">
+          © {new Date().getFullYear()} STEM Bagh-Bakri Lab · Built for primary strategy education · Runs fully in-browser
+        </p>
       </footer>
     </div>
   );

@@ -1,5 +1,4 @@
 import React from 'react';
-import { Brain, Sparkles, AlertCircle } from 'lucide-react';
 
 interface STEMPanelProps {
   lastCalculation: string;
@@ -13,104 +12,60 @@ interface STEMPanelProps {
 }
 
 export const STEMPanel: React.FC<STEMPanelProps> = ({
-  lastCalculation,
-  capturedCount,
-  capturedRequired,
-  survivalTurns,
-  survivalRequired,
-  activeWallsCount,
-  activeWallsRequired,
-  showExplanations,
+  lastCalculation, capturedCount, capturedRequired,
+  survivalTurns, survivalRequired, activeWallsCount, activeWallsRequired, showExplanations,
 }) => {
-  return (
-    <div className="glass-panel p-5 bg-slate-800/90 border-slate-700 space-y-4">
-      {/* Title */}
-      <div className="flex items-center justify-between border-b border-slate-700 pb-3">
-        <div className="flex items-center gap-2">
-          <Brain className="w-5 h-5 text-indigo-400" />
-          <h2 className="text-lg font-bold text-slate-100">STEM Calculation Hub</h2>
-        </div>
-        <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
-      </div>
+  const Bar = ({ value, max, color }: { value: number; max: number; color: string }) => (
+    <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+      <div className={`h-full rounded-full transition-all duration-500 ${color}`} style={{ width: `${Math.min((value / max) * 100, 100)}%` }} />
+    </div>
+  );
 
-      {/* Live Calculation Display */}
-      <div className="bg-slate-900/80 rounded-xl border border-slate-850 p-4 text-center space-y-2">
-        <span className="text-[10px] uppercase font-bold text-indigo-400 block tracking-wider">
-          Last Move Equation
-        </span>
-        <div className="font-mono text-xl md:text-2xl font-extrabold text-indigo-200 tracking-wide drop-shadow-[0_2px_4px_rgba(99,102,241,0.2)]">
-          {lastCalculation || "0 + 0 = 0 (Waiting for move)"}
-        </div>
-        <p className="text-[11px] text-slate-400 leading-normal max-w-sm mx-auto">
-          Every capture and defense evaluates a live addition equation based on cell coordinates!
+  return (
+    <div className="glass-panel p-4 space-y-4">
+      <h2 className="text-sm font-bold text-slate-700">STEM Hub</h2>
+
+      {/* Last equation */}
+      <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-1">
+        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Last Equation</p>
+        <p className="font-mono text-sm font-bold text-slate-800 leading-snug break-words">
+          {lastCalculation || '—'}
         </p>
       </div>
 
-      {/* Metrics Progress bars */}
-      <div className="space-y-4 text-xs">
-        {/* 1. Tiger captures */}
-        <div className="space-y-1.5">
-          <div className="flex justify-between font-bold">
-            <span className="text-red-400">Tiger Capture Goal</span>
-            <span className="text-slate-350">{capturedCount} / {capturedRequired} Goats</span>
+      {/* Progress bars */}
+      <div className="space-y-3">
+        <div className="space-y-1">
+          <div className="flex justify-between text-xs font-semibold">
+            <span className="text-rose-600">🐯 Tiger captures</span>
+            <span className="text-slate-500">{capturedCount}/{capturedRequired}</span>
           </div>
-          <div className="w-full bg-slate-900 rounded-full h-2.5 overflow-hidden border border-slate-800">
-            <div 
-              className="bg-gradient-to-r from-red-500 to-rose-600 h-full rounded-full transition-all duration-500" 
-              style={{ width: `${(capturedCount / capturedRequired) * 100}%` }}
-            ></div>
-          </div>
+          <Bar value={capturedCount} max={capturedRequired} color="bg-rose-500" />
         </div>
-
-        {/* 2. Goat survival turns */}
-        <div className="space-y-1.5">
-          <div className="flex justify-between font-bold">
-            <span className="text-emerald-400">Goat Survival turns</span>
-            <span className="text-slate-350">{survivalTurns} / {survivalRequired} Turns</span>
+        <div className="space-y-1">
+          <div className="flex justify-between text-xs font-semibold">
+            <span className="text-emerald-600">🐐 Goat turns</span>
+            <span className="text-slate-500">{survivalTurns}/{survivalRequired}</span>
           </div>
-          <div className="w-full bg-slate-900 rounded-full h-2.5 overflow-hidden border border-slate-800">
-            <div 
-              className="bg-gradient-to-r from-emerald-500 to-teal-600 h-full rounded-full transition-all duration-500" 
-              style={{ width: `${(survivalTurns / survivalRequired) * 100}%` }}
-            ></div>
-          </div>
+          <Bar value={survivalTurns} max={survivalRequired} color="bg-emerald-500" />
         </div>
-
-        {/* 3. Goat Active Math Walls */}
-        <div className="space-y-1.5">
-          <div className="flex justify-between font-bold">
-            <span className="text-emerald-400">Active Math Walls</span>
-            <span className="text-slate-350">{activeWallsCount} / {activeWallsRequired} Walls</span>
+        <div className="space-y-1">
+          <div className="flex justify-between text-xs font-semibold">
+            <span className="text-amber-600">✦ Math Walls</span>
+            <span className="text-slate-500">{activeWallsCount}/{activeWallsRequired}</span>
           </div>
-          <div className="w-full bg-slate-900 rounded-full h-2.5 overflow-hidden border border-slate-800">
-            <div 
-              className="bg-gradient-to-r from-teal-500 to-emerald-400 h-full rounded-full transition-all duration-500" 
-              style={{ width: `${Math.min((activeWallsCount / activeWallsRequired) * 100, 100)}%` }}
-            ></div>
-          </div>
+          <Bar value={activeWallsCount} max={activeWallsRequired} color="bg-amber-400" />
         </div>
       </div>
 
-      {/* STEM Detailed Explanations (Collapsible/Toggled) */}
       {showExplanations && (
-        <div className="bg-indigo-950/20 border border-indigo-900/30 p-3.5 rounded-xl space-y-2.5 text-xs text-slate-300 leading-normal text-left">
-          <div className="flex items-center gap-1 text-indigo-400 font-bold">
-            <AlertCircle className="w-3.5 h-3.5" />
-            <span>How the rules teach STEM:</span>
-          </div>
-          <ul className="list-disc pl-4 space-y-1.5 text-[11px] text-slate-350">
-            <li>
-              <strong>Addition practice</strong>: Calculating totals to see if a capture (≥ 6) or math wall (≥ 7) occurs.
-            </li>
-            <li>
-              <strong>Inequality comparison</strong>: Comparing sums against thresholds (6, 7, 8) to determine outcomes.
-            </li>
-            <li>
-              <strong>Spatial networks</strong>: Connecting adjacent nodes to create shapes, examining grid topology.
-            </li>
-            <li>
-              <strong>Resource optimization</strong>: Goats collaborate to maximize walls; Tigers prioritize breaking them.
-            </li>
+        <div className="border-t border-slate-100 pt-3 space-y-2">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">How STEM works here</p>
+          <ul className="space-y-1.5 text-xs text-slate-500 leading-relaxed list-disc pl-4">
+            <li><strong className="text-slate-600">Addition</strong>: Sum cell values to check captures (≥ 6) and walls (≥ 7).</li>
+            <li><strong className="text-slate-600">Inequalities</strong>: Compare sums to thresholds to decide outcomes.</li>
+            <li><strong className="text-slate-600">Spatial logic</strong>: Connect adjacent nodes to form defensive shapes.</li>
+            <li><strong className="text-slate-600">Strategy</strong>: Goats maximise walls; Tigers try to break them.</li>
           </ul>
         </div>
       )}

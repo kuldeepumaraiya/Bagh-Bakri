@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import type { GameVersion, PlayerFormat, GameSetupConfig } from '../types';
 import { VERSION_PRESETS } from '../data/gameConfig';
-import { ArrowLeft, Play, Settings, Users, Shield } from 'lucide-react';
+import { ArrowLeft, Play } from 'lucide-react';
 
 interface GameSetupProps {
   onBack: () => void;
@@ -27,204 +27,115 @@ export const GameSetup: React.FC<GameSetupProps> = ({ onBack, onStartGame }) => 
   };
 
   return (
-    <div className="flex-1 w-full max-w-4xl mx-auto px-4 py-8 space-y-8 text-left">
-      {/* Top Navigation */}
-      <button 
-        onClick={onBack}
-        className="inline-flex items-center gap-1.5 text-indigo-400 hover:text-indigo-300 text-sm font-medium active:scale-95 transition-all"
-      >
+    <div className="flex-1 w-full max-w-3xl mx-auto px-6 py-10 space-y-8">
+      {/* Back */}
+      <button onClick={onBack} className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 font-medium transition-colors">
         <ArrowLeft className="w-4 h-4" />
-        <span>Back to Game Ideas</span>
+        Back to Game Ideas
       </button>
 
-      {/* Main Container */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
-        {/* Settings Form: Left 3 Columns */}
-        <form onSubmit={handleSubmit} className="lg:col-span-3 space-y-6 glass-panel p-6 bg-slate-800/80">
-          <div className="flex items-center gap-2 border-b border-slate-700 pb-3 mb-2">
-            <Settings className="w-5 h-5 text-indigo-400" />
-            <h2 className="text-xl font-bold text-slate-100">Bagh-Bakri Setup</h2>
-          </div>
+      <div>
+        <h1 className="text-2xl font-extrabold text-slate-900">Game Setup</h1>
+        <p className="text-slate-500 text-sm mt-1">Configure your match before starting.</p>
+      </div>
 
-          {/* 1. Game Version */}
-          <div className="space-y-3">
-            <label className="block text-sm font-semibold text-indigo-300">
-              Step 1: Choose Game Version
-            </label>
-            <div className="grid grid-cols-3 gap-3">
-              {(['beginner', 'standard', 'advanced'] as GameVersion[]).map(v => (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => setVersion(v)}
-                  className={`px-4 py-3 rounded-xl border text-center font-bold transition-all text-sm flex flex-col justify-between h-20 ${
-                    version === v
-                      ? 'bg-indigo-600 border-indigo-400 text-white shadow-lg shadow-indigo-500/20'
-                      : 'bg-slate-900/60 border-slate-700 text-slate-300 hover:bg-slate-700/40 hover:border-slate-600'
-                  }`}
-                >
-                  <span className="capitalize">{v}</span>
-                  <span className={`text-[10px] uppercase font-semibold px-1 py-0.5 rounded inline-block ${
-                    version === v ? 'bg-indigo-500 text-indigo-100' : 'bg-slate-800 text-slate-400'
-                  }`}>
-                    {v === 'beginner' ? '5x5 Board' : v === 'standard' ? '6x6 Board' : '7x7 Board'}
-                  </span>
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-slate-400 leading-relaxed italic">
-              {VERSION_PRESETS[version].description}
-            </p>
-          </div>
-
-          {/* 2. Player Format */}
-          <div className="space-y-3">
-            <label className="block text-sm font-semibold text-indigo-300">
-              Step 2: Choose Player Format
-            </label>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {(['2-players', '4-players', 'classroom'] as PlayerFormat[]).map(f => (
-                <button
-                  key={f}
-                  type="button"
-                  onClick={() => setFormat(f)}
-                  className={`px-4 py-3 rounded-xl border text-left font-bold transition-all text-sm flex items-start gap-2.5 ${
-                    format === f
-                      ? 'bg-indigo-600 border-indigo-400 text-white shadow-lg shadow-indigo-500/20'
-                      : 'bg-slate-900/60 border-slate-700 text-slate-300 hover:bg-slate-700/40 hover:border-slate-600'
-                  }`}
-                >
-                  <Users className="w-5 h-5 shrink-0 mt-0.5" />
-                  <div className="flex flex-col">
-                    <span className="capitalize">
-                      {f === '2-players' ? '2 Players' : f === '4-players' ? '4 Players' : 'Classroom Mode'}
-                    </span>
-                    <span className="text-[10px] text-indigo-200 font-medium">
-                      {f === '2-players' ? '1 vs 1 Game' : f === '4-players' ? '2 vs 2 Teams' : 'Collaborative play'}
-                    </span>
-                  </div>
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-slate-400 leading-relaxed italic">
-              {format === '2-players' && 'One player controls all goats, and one player controls all tigers. Perfect for head-to-head calculations.'}
-              {format === '4-players' && 'Two students form the Goat Team, two form the Tiger Team. Encourages discussion before making a move.'}
-              {format === 'classroom' && 'Perfect for interactive screens. Displays roles (Rule Checker, STEM Calculator, Move Recorder, Strategy Explainer) and cooperative prompts.'}
-            </p>
-          </div>
-
-          {/* 3. Team Names */}
-          <div className="space-y-4">
-            <label className="block text-sm font-semibold text-indigo-300">
-              Step 3: Enter Team Names
-            </label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-300">Goat Team (Defenders)</label>
-                <input
-                  type="text"
-                  value={goatTeamName}
-                  onChange={e => setGoatTeamName(e.target.value)}
-                  maxLength={20}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-700 bg-slate-900/80 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold"
-                  placeholder="Goat Team"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-300">Tiger Team (Attackers)</label>
-                <input
-                  type="text"
-                  value={tigerTeamName}
-                  onChange={e => setTigerTeamName(e.target.value)}
-                  maxLength={20}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-700 bg-slate-900/80 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold"
-                  placeholder="Tiger Team"
-                />
-              </div>
-            </div>
-          </div>
-        </form>
-
-        {/* Summary Card: Right 2 Columns */}
-        <div className="lg:col-span-2 glass-panel p-6 bg-slate-850 border-indigo-500/20 space-y-6">
-          <div className="flex items-center gap-2 border-b border-slate-700 pb-3 mb-2">
-            <Shield className="w-5 h-5 text-emerald-400" />
-            <h2 className="text-xl font-bold text-slate-100">Setup Summary</h2>
-          </div>
-
-          <div className="space-y-4 text-sm">
-            {/* Version */}
-            <div className="flex justify-between border-b border-slate-800 pb-2">
-              <span className="text-slate-400">Selected Version:</span>
-              <span className="font-bold text-slate-200 capitalize">{version}</span>
-            </div>
-
-            {/* Board size */}
-            <div className="flex justify-between border-b border-slate-800 pb-2">
-              <span className="text-slate-400">Board Grid Size:</span>
-              <span className="font-bold text-slate-200">{selectedPreset.gridSize} x {selectedPreset.gridSize}</span>
-            </div>
-
-            {/* Tigers */}
-            <div className="flex justify-between border-b border-slate-800 pb-2">
-              <span className="text-slate-400">Number of Tigers:</span>
-              <span className="font-bold text-red-400">{selectedPreset.tigersCount}</span>
-            </div>
-
-            {/* Goats */}
-            <div className="flex justify-between border-b border-slate-800 pb-2">
-              <span className="text-slate-400">Number of Goats:</span>
-              <span className="font-bold text-emerald-400">{selectedPreset.goatsCount}</span>
-            </div>
-
-            {/* Format */}
-            <div className="flex justify-between border-b border-slate-800 pb-2">
-              <span className="text-slate-400">Player Format:</span>
-              <span className="font-bold text-slate-250 capitalize">
-                {format === '2-players' ? '2 Players' : format === '4-players' ? '4 Players' : 'Classroom Mode'}
-              </span>
-            </div>
-
-            {/* Team Names */}
-            <div className="flex justify-between border-b border-slate-800 pb-2">
-              <span className="text-slate-400">Goat Side:</span>
-              <span className="font-bold text-emerald-300">{goatTeamName || 'Goat Team'}</span>
-            </div>
-            <div className="flex justify-between border-b border-slate-800 pb-2">
-              <span className="text-slate-400">Tiger Side:</span>
-              <span className="font-bold text-red-300">{tigerTeamName || 'Tiger Team'}</span>
-            </div>
-
-            {/* Win conditions */}
-            <div className="space-y-2.5 bg-slate-900/60 p-3.5 rounded-xl border border-slate-800/80">
-              <span className="text-xs font-bold text-indigo-300 block uppercase tracking-wider">Win Conditions:</span>
-              
-              <div className="space-y-1.5 text-xs">
-                <div className="flex gap-2">
-                  <span className="text-emerald-400 shrink-0 font-bold">Goats:</span>
-                  <span className="text-slate-300 leading-normal">
-                    Survive <strong className="text-slate-200">{selectedPreset.goatSurvivalTurns}</strong> goat turns OR build <strong className="text-slate-200">{selectedPreset.goatActiveWallsRequired}</strong> active Math Walls (sum ≥ 7).
-                  </span>
+      <form onSubmit={handleSubmit} className="space-y-8">
+        {/* Step 1: Version */}
+        <div className="space-y-3">
+          <label className="text-sm font-semibold text-slate-700">1. Board Size</label>
+          <div className="grid grid-cols-3 gap-3">
+            {(['beginner', 'standard', 'advanced'] as GameVersion[]).map(v => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setVersion(v)}
+                className={`py-3 px-4 rounded-lg border text-sm font-semibold transition-colors ${
+                  version === v
+                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                }`}
+              >
+                <div className="capitalize">{v}</div>
+                <div className="text-xs font-normal mt-0.5 opacity-70">
+                  {v === 'beginner' ? '5×5' : v === 'standard' ? '6×6' : '7×7'}
                 </div>
-                <div className="flex gap-2">
-                  <span className="text-red-400 shrink-0 font-bold">Tigers:</span>
-                  <span className="text-slate-300 leading-normal">
-                    Capture <strong className="text-slate-200">{selectedPreset.tigerCapturesRequired}</strong> goats.
-                  </span>
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-slate-400">{VERSION_PRESETS[version].description}</p>
+        </div>
+
+        {/* Step 2: Format */}
+        <div className="space-y-3">
+          <label className="text-sm font-semibold text-slate-700">2. Player Format</label>
+          <div className="grid grid-cols-3 gap-3">
+            {(['2-players', '4-players', 'classroom'] as PlayerFormat[]).map(f => (
+              <button
+                key={f}
+                type="button"
+                onClick={() => setFormat(f)}
+                className={`py-3 px-4 rounded-lg border text-sm font-semibold transition-colors text-left ${
+                  format === f
+                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                }`}
+              >
+                <div>{f === '2-players' ? '2 Players' : f === '4-players' ? '4 Players' : 'Classroom'}</div>
+                <div className="text-xs font-normal mt-0.5 opacity-70">
+                  {f === '2-players' ? '1 vs 1' : f === '4-players' ? '2 vs 2' : 'Collaborative'}
                 </div>
-              </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Step 3: Team Names */}
+        <div className="space-y-3">
+          <label className="text-sm font-semibold text-slate-700">3. Team Names</label>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs text-slate-500 font-medium">🐐 Goat Team</label>
+              <input
+                type="text"
+                value={goatTeamName}
+                onChange={e => setGoatTeamName(e.target.value)}
+                maxLength={20}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-slate-800 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                placeholder="Goat Team"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-slate-500 font-medium">🐯 Tiger Team</label>
+              <input
+                type="text"
+                value={tigerTeamName}
+                onChange={e => setTigerTeamName(e.target.value)}
+                maxLength={20}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-slate-800 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                placeholder="Tiger Team"
+              />
             </div>
           </div>
+        </div>
 
-          <button
-            onClick={handleSubmit}
-            className="w-full btn-primary py-3 flex items-center justify-center gap-2 group text-base font-bold shadow-indigo-600/30"
-          >
+        {/* Summary + Start */}
+        <div className="border border-slate-200 rounded-xl p-5 space-y-4 bg-slate-50">
+          <p className="text-sm font-semibold text-slate-700">Summary</p>
+          <div className="grid grid-cols-2 gap-y-2 text-sm">
+            <span className="text-slate-400">Version</span><span className="text-slate-700 font-semibold capitalize">{version}</span>
+            <span className="text-slate-400">Board</span><span className="text-slate-700 font-semibold">{selectedPreset.gridSize}×{selectedPreset.gridSize}</span>
+            <span className="text-slate-400">Tigers</span><span className="text-rose-600 font-semibold">{selectedPreset.tigersCount}</span>
+            <span className="text-slate-400">Goats</span><span className="text-emerald-600 font-semibold">{selectedPreset.goatsCount}</span>
+            <span className="text-slate-400">Format</span><span className="text-slate-700 font-semibold">{format === '2-players' ? '2 Players' : format === '4-players' ? '4 Players' : 'Classroom'}</span>
+            <span className="text-slate-400">Goat win</span><span className="text-slate-600 text-xs">Survive {selectedPreset.goatSurvivalTurns} turns or {selectedPreset.goatActiveWallsRequired} walls</span>
+            <span className="text-slate-400">Tiger win</span><span className="text-slate-600 text-xs">Capture {selectedPreset.tigerCapturesRequired} goats</span>
+          </div>
+          <button type="submit" className="btn-primary w-full py-2.5 text-sm">
+            <Play className="w-4 h-4 fill-current" />
             <span>Start Game</span>
-            <Play className="w-5 h-5 fill-current group-hover:scale-110 transition-transform" />
           </button>
         </div>
-      </div>
+      </form>
     </div>
   );
 };

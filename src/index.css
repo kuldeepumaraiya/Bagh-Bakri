@@ -1,78 +1,71 @@
 @import "tailwindcss";
 
 @layer base {
-  body {
-    @apply bg-slate-900 text-slate-100 font-sans antialiased selection:bg-indigo-500/30 selection:text-indigo-200 overflow-x-hidden min-h-screen;
-    background-image: 
-      radial-gradient(at 0% 0%, hsla(244, 55%, 15%, 1) 0px, transparent 50%),
-      radial-gradient(at 100% 0%, hsla(168, 55%, 10%, 1) 0px, transparent 50%),
-      radial-gradient(at 50% 100%, hsla(220, 50%, 10%, 1) 0px, transparent 50%);
-    background-attachment: fixed;
+  html, body {
+    background-color: #ffffff;
+    @apply text-slate-800 font-sans antialiased overflow-x-hidden min-h-screen;
   }
-  
+
   #root {
     @apply min-h-screen w-full flex flex-col;
   }
 }
 
-/* Premium Layout Panels */
+/* ── Shared panel card ── */
 .glass-panel {
-  @apply bg-slate-800/60 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-xl shadow-slate-950/20 transition-all duration-300;
+  @apply bg-white border border-slate-200 rounded-xl transition-all duration-200;
 }
 
 .glass-panel-hover {
-  @apply hover:bg-slate-800/80 hover:border-slate-600/50 hover:shadow-2xl hover:shadow-indigo-950/30 hover:-translate-y-0.5;
+  @apply hover:border-slate-300 hover:shadow-sm;
 }
 
-/* Custom Interactive Controls */
+/* ── Buttons ── */
 .btn-primary {
-  @apply px-6 py-3 font-semibold text-white bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 rounded-xl shadow-lg shadow-indigo-500/20 active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2;
+  @apply px-5 py-2.5 font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg active:scale-[0.98] transition-all duration-150 flex items-center justify-center gap-2;
 }
 
 .btn-secondary {
-  @apply px-6 py-3 font-semibold text-slate-200 bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 hover:border-slate-600 rounded-xl shadow-md active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2;
+  @apply px-5 py-2.5 font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 hover:border-slate-400 rounded-lg active:scale-[0.98] transition-all duration-150 flex items-center justify-center gap-2;
 }
 
 .btn-danger {
-  @apply px-4 py-2 font-semibold text-white bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 rounded-xl shadow-md active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-1;
+  @apply px-4 py-2 font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg active:scale-[0.98] transition-all duration-150 flex items-center justify-center gap-1;
 }
 
 .btn-success {
-  @apply px-4 py-2 font-semibold text-white bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 rounded-xl shadow-md active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-1;
+  @apply px-4 py-2 font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg active:scale-[0.98] transition-all duration-150 flex items-center justify-center gap-1;
 }
 
-/* Custom modern scrollbar design */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #f8fafc; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
-::-webkit-scrollbar-track {
-  @apply bg-slate-950/40;
-}
-
-::-webkit-scrollbar-thumb {
-  @apply bg-slate-700/80 hover:bg-slate-600/80 rounded-full transition-colors;
-}
-
-/* Pulse animation helper */
-@keyframes pulse-slow {
-  0%, 100% { opacity: 0.15; transform: scale(1); }
-  50% { opacity: 0.3; transform: scale(1.05); }
-}
-
-.animate-pulse-slow {
-  animation: pulse-slow 8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
-/* Math Wall Dash Glow Path */
+/* ── Math Wall animated dash ── */
 .wall-connection {
   stroke-dasharray: 8 4;
   animation: dash 1s linear infinite;
 }
 
 @keyframes dash {
-  to {
-    stroke-dashoffset: -12;
-  }
+  to { stroke-dashoffset: -12; }
+}
+
+/* ── Sticker animations (subtle) ── */
+@keyframes bounce-gentle {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-4px); }
+}
+.animate-bounce-gentle {
+  animation: bounce-gentle 3s ease-in-out infinite;
+}
+
+@keyframes pulse-gentle {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.05); }
+}
+.animate-pulse-gentle {
+  animation: pulse-gentle 3.5s ease-in-out infinite;
 }

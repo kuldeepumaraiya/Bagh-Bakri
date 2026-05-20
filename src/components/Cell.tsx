@@ -1,6 +1,5 @@
 import React from 'react';
 import type { Piece } from '../types';
-import { Shield, Target, Swords, PlusCircle } from 'lucide-react';
 
 interface CellProps {
   coordinate: string;
@@ -16,119 +15,82 @@ interface CellProps {
 }
 
 export const Cell: React.FC<CellProps> = ({
-  coordinate,
-  nodeNumber,
-  occupyingPiece,
-  isGoatProtected,
-  isSelected,
-  isMoveHighlight,
-  isCaptureHighlight,
-  isWallHighlight,
-  onCellClick,
-  classroomMode,
+  coordinate, nodeNumber, occupyingPiece, isGoatProtected,
+  isSelected, isMoveHighlight, isCaptureHighlight, isWallHighlight,
+  onCellClick, classroomMode,
 }) => {
-  const isOccupied = !!occupyingPiece;
   const isTiger = occupyingPiece?.type === 'tiger';
-  const isGoat = occupyingPiece?.type === 'goat';
+  const isGoat  = occupyingPiece?.type === 'goat';
 
-  // Base background and text sizes
-  let bgClass = 'bg-slate-800/40 border-slate-700/60 text-slate-400';
+  // Background state
+  let bg = 'bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300';
+  if (isMoveHighlight)         bg = 'bg-sky-50 border-sky-300';
+  else if (isCaptureHighlight) bg = 'bg-rose-50 border-rose-400';
+  else if (isWallHighlight)    bg = 'bg-emerald-50 border-emerald-400';
+  else if (isSelected)         bg = 'bg-amber-50 border-amber-400';
+  else if (isTiger)            bg = 'bg-rose-50 border-rose-200';
+  else if (isGoat)             bg = 'bg-emerald-50 border-emerald-200';
 
+  // Number colour
+  let numColor = 'text-slate-400';
+  if (isMoveHighlight)         numColor = 'text-sky-500';
+  else if (isCaptureHighlight) numColor = 'text-rose-500';
+  else if (isWallHighlight)    numColor = 'text-emerald-600';
+  else if (isSelected)         numColor = 'text-amber-500';
 
-  if (isMoveHighlight) {
-    bgClass = 'bg-indigo-500/20 border-indigo-400 text-indigo-200 cursor-pointer animate-pulse ring-2 ring-indigo-400/40';
-  } else if (isCaptureHighlight) {
-    bgClass = 'bg-red-500/25 border-red-400 text-red-100 cursor-pointer ring-2 ring-red-500/50 animate-pulse';
-  } else if (isWallHighlight) {
-    bgClass = 'bg-emerald-500/20 border-emerald-400 text-emerald-100 cursor-pointer ring-2 ring-emerald-400/40 animate-pulse';
-  } else if (isSelected) {
-    bgClass = 'bg-indigo-600/30 border-indigo-400 text-slate-100 ring-2 ring-indigo-500';
-  } else if (isOccupied) {
-    bgClass = isTiger 
-      ? 'bg-red-950/40 border-red-800/80 text-red-100 shadow-lg shadow-red-950/30' 
-      : 'bg-emerald-950/30 border-emerald-800/60 text-emerald-100 shadow-lg shadow-emerald-950/20';
-  }
+  const emoji = isTiger ? '🐯' : isGoat ? '🐐' : null;
+  const emojiAnim = isTiger ? 'animate-bounce-gentle' : 'animate-pulse-gentle';
+  const emojiSize = classroomMode ? 'text-3xl' : 'text-2xl';
 
   return (
     <button
       type="button"
       onClick={onCellClick}
-      className={`relative w-full aspect-square rounded-2xl border-2 flex flex-col items-center justify-between p-2 md:p-3 transition-all duration-200 ${bgClass} ${
-        !isOccupied && !isMoveHighlight && !isCaptureHighlight && !isWallHighlight 
-          ? 'hover:bg-slate-800/70 hover:border-slate-600' 
-          : ''
-      }`}
-      style={{ minHeight: classroomMode ? '84px' : '72px' }}
-      title={`${coordinate} (Value: ${nodeNumber})`}
+      className={`relative w-full aspect-square rounded-lg border-2 flex flex-col items-center justify-center gap-0 cursor-pointer transition-all duration-150 ${bg}`}
+      style={{ minHeight: classroomMode ? '80px' : '60px' }}
+      title={`${coordinate} · Value: ${nodeNumber}`}
     >
-      {/* Coordinate & Node Value header row */}
-      <div className="flex justify-between items-center w-full text-[10px] md:text-xs font-semibold text-slate-400">
-        <span className="tracking-wide">{coordinate}</span>
-        <span className={`px-1.5 py-0.5 rounded ${
-          isSelected 
-            ? 'bg-indigo-500 text-white' 
-            : isMoveHighlight 
-              ? 'bg-indigo-400/30 text-indigo-300' 
-              : isCaptureHighlight 
-                ? 'bg-red-500/30 text-red-300 font-bold' 
-                : isWallHighlight 
-                  ? 'bg-emerald-500/30 text-emerald-300 font-bold'
-                  : isOccupied 
-                    ? isTiger ? 'bg-red-900/50 text-red-300' : 'bg-emerald-900/50 text-emerald-300'
-                    : 'bg-slate-700/50 text-slate-350'
-        }`}>
+      {/* Coordinate — bottom-left, very faint */}
+      <span className="absolute bottom-1 left-1.5 text-[7px] font-medium text-slate-300 leading-none select-none">
+        {coordinate}
+      </span>
+
+      {/* Wall badge — top-right only, doesn't overlap coordinate */}
+      {isWallHighlight && !isCaptureHighlight && (
+        <span className="absolute top-1 right-1 text-[7px] font-bold text-emerald-600 uppercase leading-none select-none bg-emerald-100 px-0.5 rounded">
+          wall
+        </span>
+      )}
+      {isCaptureHighlight && (
+        <span className="absolute top-1 right-1 text-[7px] font-bold text-rose-500 uppercase leading-none select-none bg-rose-100 px-0.5 rounded">
+          cap
+        </span>
+      )}
+
+      {/* Protected shield — top-left only when goat is protected */}
+      {isGoat && isGoatProtected && (
+        <span className="absolute top-0.5 left-0.5 text-base leading-none select-none pointer-events-none" title="Protected by Math Wall">
+          🛡️
+        </span>
+      )}
+
+      {/* Main content: emoji or node number */}
+      {emoji ? (
+        <span className={`${emojiSize} ${emojiAnim} select-none pointer-events-none leading-none`} role="img">
+          {emoji}
+        </span>
+      ) : (
+        <span className={`text-lg font-bold select-none leading-none ${numColor}`}>
           {nodeNumber}
         </span>
-      </div>
+      )}
 
-      {/* Piece label or helper icon */}
-      <div className="flex-1 flex items-center justify-center w-full my-1">
-        {isOccupied ? (
-          <div className="flex flex-col items-center justify-center">
-            {/* Bold labels */}
-            <span className={`font-extrabold ${classroomMode ? 'text-3xl' : 'text-2xl md:text-3xl'} tracking-tight ${
-              isTiger ? 'text-red-400 drop-shadow-[0_2px_8px_rgba(239,68,68,0.3)]' : 'text-emerald-400 drop-shadow-[0_2px_8px_rgba(16,185,129,0.3)]'
-            }`}>
-              {occupyingPiece.label}
-            </span>
-          </div>
-        ) : (
-          <div className="opacity-0 hover:opacity-10 transition-opacity">
-            <span className="text-xs font-bold">{coordinate}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Bottom status markers (Shield for protected, Swords for capture, etc.) */}
-      <div className="h-4 flex items-center justify-center gap-1.5 w-full">
-        {isGoat && isGoatProtected && (
-          <div className="flex items-center gap-1 text-emerald-400 animate-bounce" title="Math Wall Protection Enabled">
-            <Shield className="w-3.5 h-3.5 fill-emerald-400/20" />
-            {!classroomMode && <span className="text-[9px] font-bold uppercase tracking-wider">Shield</span>}
-          </div>
-        )}
-
-        {isCaptureHighlight && (
-          <div className="flex items-center gap-0.5 text-red-400">
-            <Swords className="w-3.5 h-3.5" />
-            <span className="text-[9px] font-extrabold uppercase">Attack</span>
-          </div>
-        )}
-
-        {isWallHighlight && (
-          <div className="flex items-center gap-0.5 text-emerald-400">
-            <PlusCircle className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="text-[9px] font-extrabold uppercase">Wall</span>
-          </div>
-        )}
-
-        {isMoveHighlight && !isCaptureHighlight && !isWallHighlight && (
-          <div className="flex items-center gap-0.5 text-indigo-400">
-            <Target className="w-3.5 h-3.5" />
-            <span className="text-[9px] font-semibold uppercase">Move</span>
-          </div>
-        )}
-      </div>
+      {/* Node number — shown below emoji when occupied */}
+      {emoji && (
+        <span className={`text-[10px] font-semibold select-none leading-none mt-0.5 ${numColor}`}>
+          {nodeNumber}
+        </span>
+      )}
     </button>
   );
 };
