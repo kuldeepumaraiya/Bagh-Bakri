@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    @apply bg-slate-900 text-slate-100 font-sans antialiased selection:bg-indigo-500/30 selection:text-indigo-200 overflow-x-hidden min-h-screen;
+    background-image: 
+      radial-gradient(at 0% 0%, hsla(244, 55%, 15%, 1) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, hsla(168, 55%, 10%, 1) 0px, transparent 50%),
+      radial-gradient(at 50% 100%, hsla(220, 50%, 10%, 1) 0px, transparent 50%);
+    background-attachment: fixed;
+  }
+  
+  #root {
+    @apply min-h-screen w-full flex flex-col;
+  }
+}
+
+/* Premium Layout Panels */
+.glass-panel {
+  @apply bg-slate-800/60 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-xl shadow-slate-950/20 transition-all duration-300;
+}
+
+.glass-panel-hover {
+  @apply hover:bg-slate-800/80 hover:border-slate-600/50 hover:shadow-2xl hover:shadow-indigo-950/30 hover:-translate-y-0.5;
+}
+
+/* Custom Interactive Controls */
+.btn-primary {
+  @apply px-6 py-3 font-semibold text-white bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 rounded-xl shadow-lg shadow-indigo-500/20 active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2;
+}
+
+.btn-secondary {
+  @apply px-6 py-3 font-semibold text-slate-200 bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 hover:border-slate-600 rounded-xl shadow-md active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2;
+}
+
+.btn-danger {
+  @apply px-4 py-2 font-semibold text-white bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 rounded-xl shadow-md active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-1;
+}
+
+.btn-success {
+  @apply px-4 py-2 font-semibold text-white bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 rounded-xl shadow-md active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-1;
+}
+
+/* Custom modern scrollbar design */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-slate-950/40;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-700/80 hover:bg-slate-600/80 rounded-full transition-colors;
+}
+
+/* Pulse animation helper */
+@keyframes pulse-slow {
+  0%, 100% { opacity: 0.15; transform: scale(1); }
+  50% { opacity: 0.3; transform: scale(1.05); }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Math Wall Dash Glow Path */
+.wall-connection {
+  stroke-dasharray: 8 4;
+  animation: dash 1s linear infinite;
+}
+
+@keyframes dash {
+  to {
+    stroke-dashoffset: -12;
+  }
+}
