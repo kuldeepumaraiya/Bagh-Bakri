@@ -1,24 +1,28 @@
 import React, { useState } from 'react';
 import type { GameVersion, PlayerFormat, GameSetupConfig } from '../types';
 import { VERSION_PRESETS } from '../data/gameConfig';
+import { GAME_IDEAS } from '../data/ideasData';
 import { ArrowLeft, Play } from 'lucide-react';
 
 interface GameSetupProps {
+  ideaId: number;
   onBack: () => void;
   onStartGame: (config: GameSetupConfig) => void;
 }
 
-export const GameSetup: React.FC<GameSetupProps> = ({ onBack, onStartGame }) => {
+export const GameSetup: React.FC<GameSetupProps> = ({ ideaId, onBack, onStartGame }) => {
   const [version, setVersion] = useState<GameVersion>('standard');
   const [format, setFormat] = useState<PlayerFormat>('2-players');
   const [goatTeamName, setGoatTeamName] = useState('Goat Team');
   const [tigerTeamName, setTigerTeamName] = useState('Tiger Team');
 
   const selectedPreset = VERSION_PRESETS[version];
+  const activeIdea = GAME_IDEAS.find(i => i.id === ideaId) || GAME_IDEAS[0];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onStartGame({
+      ideaId,
       version,
       format,
       goatTeamName: goatTeamName.trim() || 'Goat Team',
@@ -35,8 +39,8 @@ export const GameSetup: React.FC<GameSetupProps> = ({ onBack, onStartGame }) => 
       </button>
 
       <div>
-        <h1 className="text-2xl font-extrabold text-slate-900">Game Setup</h1>
-        <p className="text-slate-500 text-sm mt-1">Configure your match before starting.</p>
+        <h1 className="text-2xl font-extrabold text-slate-900">Setup: {activeIdea.title}</h1>
+        <p className="text-slate-500 text-sm mt-1">STEM: {activeIdea.stemFocus}</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">

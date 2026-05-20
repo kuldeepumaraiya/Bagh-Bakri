@@ -6,6 +6,7 @@ import { RulesPanel } from './RulesPanel';
 import { MoveLog } from './MoveLog';
 import { STEMPanel } from './STEMPanel';
 import { ClassroomModePanel } from './ClassroomModePanel';
+import { mathWallLogic } from '../utils/mathWallLogic';
 import { detectMathWalls } from '../utils/mathWallDetector';
 import { checkTigerCapture } from '../utils/captureChecker';
 import { areAdjacent, getNeighbors } from '../utils/boardHelpers';
@@ -225,7 +226,7 @@ export const MathWallGame: React.FC<MathWallGameProps> = ({ config, onChangeSetu
           )}
 
           {classroomMode && (
-            <ClassroomModePanel currentPlayer={currentPlayer} hasSelectedPiece={!!selectedPiece} goatTeamName={goatTeamName} tigerTeamName={tigerTeamName} turnNumber={moveLog.length} />
+            <ClassroomModePanel currentPlayer={currentPlayer} hasSelectedPiece={!!selectedPiece} goatTeamName={goatTeamName} tigerTeamName={tigerTeamName} turnNumber={moveLog.length} logicEngine={mathWallLogic} />
           )}
 
           <GameBoard
@@ -241,7 +242,9 @@ export const MathWallGame: React.FC<MathWallGameProps> = ({ config, onChangeSetu
         <div className="lg:col-span-4 space-y-4">
           <STEMPanel lastCalculation={lastCalculation} capturedCount={capturedGoatsCount} capturedRequired={preset.tigerCapturesRequired} survivalTurns={goatTurnsCount} survivalRequired={preset.goatSurvivalTurns} activeWallsCount={activeWalls.length} activeWallsRequired={preset.goatActiveWallsRequired} showExplanations={showSTEMExplanations} />
           <MoveLog moveLog={moveLog} onClearHistory={handleReset} goatTeamName={goatTeamName} tigerTeamName={tigerTeamName} />
-          {showRules && <RulesPanel onClose={() => setShowRules(false)} />}
+          {showRules && (
+            <RulesPanel ideaId={1} version={version} logicEngine={mathWallLogic} onClose={() => setShowRules(false)} />
+          )}
         </div>
       </div>
     </div>

@@ -3,6 +3,7 @@
 @layer base {
   html, body {
     background-color: #ffffff;
+    font-size: 18px;
     @apply text-slate-800 font-sans antialiased overflow-x-hidden min-h-screen;
   }
 

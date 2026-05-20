@@ -1,4 +1,5 @@
 import React from 'react';
+import type { GameLogicEngine } from '../utils/gameLogicRegistry';
 
 interface ClassroomModePanelProps {
   currentPlayer: 'goat' | 'tiger';
@@ -6,10 +7,11 @@ interface ClassroomModePanelProps {
   goatTeamName: string;
   tigerTeamName: string;
   turnNumber: number;
+  logicEngine: GameLogicEngine;
 }
 
 export const ClassroomModePanel: React.FC<ClassroomModePanelProps> = ({
-  currentPlayer, hasSelectedPiece, goatTeamName, tigerTeamName, turnNumber,
+  currentPlayer, hasSelectedPiece, goatTeamName, tigerTeamName, turnNumber, logicEngine,
 }) => {
   const isGoat = currentPlayer === 'goat';
 
@@ -17,14 +19,26 @@ export const ClassroomModePanel: React.FC<ClassroomModePanelProps> = ({
     ? (!hasSelectedPiece ? `🐐 ${goatTeamName}: Select a Goat to move.` : `🐐 ${goatTeamName}: Choose an adjacent cell.`)
     : (!hasSelectedPiece ? `🐯 ${tigerTeamName}: Select a Tiger to move.` : `🐯 ${tigerTeamName}: Move or capture an adjacent Goat.`);
 
-  const prompts = [
-    'Which Goat is protected? Check the gold wall lines.',
-    'Can the Tiger break a Math Wall? Tiger + Goat ≥ 8?',
-    'Which move creates the best Math Wall? Aim for sum ≥ 7.',
-    'Which Tiger has the best capture? Look at adjacent Goats.',
-    'If Goats block all Tigers, what is the best strategy?',
-    'Does moving to a high-value cell (4–5) help more?',
-  ];
+  // Get dynamic classroom config from the logic engine
+  const classroomConfig = logicEngine.getClassroomModeConfig
+    ? logicEngine.getClassroomModeConfig(turnNumber)
+    : {
+        prompts: [
+          'What is the best move for this piece?',
+          'Is this move allowed? Check the rules.',
+          'How does this move help the team?',
+          'What should the other team watch out for?',
+        ],
+        roles: [
+          { role: 'Rule Checker', desc: 'Verify adjacency and move legality.' },
+          { role: 'STEM Calculator', desc: 'Apply the game\'s math or logic.' },
+          { role: 'Move Recorder', desc: 'Watch the log.' },
+          { role: 'Strategy Explainer', desc: 'Justify the move.' },
+        ],
+      };
+
+  const { prompts, roles } = classroomConfig;
+  const currentPrompt = prompts[turnNumber % prompts.length];
 
   return (
     <div className="glass-panel p-4 space-y-4">
@@ -41,12 +55,7 @@ export const ClassroomModePanel: React.FC<ClassroomModePanelProps> = ({
 
       {/* Roles */}
       <div className="grid grid-cols-2 gap-2">
-        {[
-          { role: 'Rule Checker', desc: 'Verify adjacency.' },
-          { role: 'STEM Calculator', desc: 'Say sums aloud.' },
-          { role: 'Move Recorder', desc: 'Watch the log.' },
-          { role: 'Strategy Explainer', desc: 'Justify the move.' },
-        ].map(r => (
+        {roles.map(r => (
           <div key={r.role} className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 space-y-0.5">
             <p className="text-[10px] font-bold text-slate-600">{r.role}</p>
             <p className="text-[10px] text-slate-400">{r.desc}</p>
@@ -57,7 +66,7 @@ export const ClassroomModePanel: React.FC<ClassroomModePanelProps> = ({
       {/* Discussion prompt */}
       <div className="bg-amber-50 border border-amber-100 rounded-lg p-3">
         <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wide mb-1">Discussion Prompt</p>
-        <p className="text-xs text-slate-600 italic">"{prompts[turnNumber % prompts.length]}"</p>
+        <p className="text-xs text-slate-600 italic">"{currentPrompt}"</p>
       </div>
     </div>
   );
