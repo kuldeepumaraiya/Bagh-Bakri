@@ -1,7 +1,13 @@
 import React from 'react';
-import type { Piece, MathWall, CellConfig } from '../types';
+import type { Piece, MathWall, CellConfig, GameVersion } from '../types';
 import { Cell } from './Cell';
 import { coordToColRow } from '../utils/boardHelpers';
+
+// STEM Logic Imports
+import { detectNumberTrails } from '../utils/numberTrailLogic';
+import { detectPatterns } from '../utils/patternTrailLogic';
+import { detectGeometryWalls } from '../utils/geometryWallLogic';
+import { findConnectedPaths } from '../utils/buildBoardLogic';
 
 interface GameBoardProps {
   gridSize: number;
@@ -16,12 +22,16 @@ interface GameBoardProps {
   onCellClick: (coordinate: string) => void;
   classroomMode: boolean;
   gridCells?: Record<string, CellConfig>;
+  ideaId?: number;
+  version?: GameVersion;
+  extraState?: any;
 }
 
 export const GameBoard: React.FC<GameBoardProps> = ({
   gridSize, pieces, cellNumbers, activeWalls, protectedGoatPositions,
   selectedPiece, moveHighlights, captureHighlights, wallHighlights,
   onCellClick, classroomMode, gridCells,
+  ideaId, version, extraState,
 }) => {
   const getPieceAt = (coordinate: string) => pieces.find(p => p.position === coordinate);
 
@@ -74,14 +84,62 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     });
   }
 
+  // Helper: check satisfies logic rule (Idea 9)
+  const checkSatisfiesLogicRule = (coord: string, val: number) => {
+    if (ideaId !== 9 || !extraState || !extraState.activeRuleId) return false;
+    const ruleId = extraState.activeRuleId;
+    if (ruleId === 'even-path') return val % 2 === 0;
+    if (ruleId === 'odd-path') return val % 2 !== 0;
+    if (ruleId === 'prime-path') return val === 2 || val === 3 || val === 5;
+    if (ruleId === 'multiple-check') return val === 2 || val === 3 || val === 4;
+    
+    if (selectedPiece) {
+      const from = selectedPiece.position;
+      const fromVal = cellNumbers[from] || 1;
+      if (ruleId === 'greater-move') return val > fromVal;
+      if (ruleId === 'smaller-move') return val < fromVal;
+      if (ruleId === 'pattern-rule') return (val % 2) !== (fromVal % 2);
+    }
+    return false;
+  };
+
+  // Helper: calculate pre-flight energy cost (Idea 4)
+  const getEnergyCostForCell = (coord: string) => {
+    if (ideaId !== 4 || !selectedPiece) return null;
+    const isMove = moveHighlights.includes(coord);
+    const isCap = captureHighlights.includes(coord);
+    if (!isMove && !isCap) return null;
+
+    const f = coordToColRow(selectedPiece.position);
+    const t = coordToColRow(coord);
+    const isDiagonal = Math.abs(f.col - t.col) > 0 && Math.abs(f.row - t.row) > 0;
+    let baseCost = isDiagonal ? 2 : 1;
+
+    if (version === 'advanced') {
+      const dest = gridCells ? gridCells[coord] : undefined;
+      if (dest?.habitat === 'water') {
+        baseCost += 1;
+      }
+    }
+
+    if (isCap && selectedPiece.type === 'tiger') {
+      const target = pieces.find(p => p.position === coord);
+      const isShielded = target?.hasShield;
+      return isShielded ? 5 : 3;
+    }
+
+    return baseCost;
+  };
+
   return (
     <div className="relative w-full max-w-2xl mx-auto bg-[#FAF8F5] border border-slate-200 rounded-2xl p-4 md:p-6 shadow-sm">
       <div className="relative w-full aspect-square bg-[#FCFAF7] border border-[#ECE6DB] rounded-xl p-2 md:p-3 shadow-inner">
-        {/* SVG lines */}
+        {/* SVG lines and Glowing Overlays */}
         <svg className="absolute inset-0 w-full h-full pointer-events-none z-10" xmlns="http://www.w3.org/2000/svg">
           {lines}
-          {/* Math Wall or glowing connections */}
-          {activeWalls.map(wall => {
+
+          {/* Idea 1: Standard/Math Walls */}
+          {ideaId === 1 && activeWalls.map(wall => {
             const p1 = getCellPct(wall.from), p2 = getCellPct(wall.to);
             return (
               <g key={`w-${wall.id}`}>
@@ -90,6 +148,122 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               </g>
             );
           })}
+
+          {/* Idea 2: Number Trail (Purple) */}
+          {ideaId === 2 && (() => {
+            const { completedTrails } = detectNumberTrails(pieces, cellNumbers, version || 'standard');
+            return completedTrails.map((trail, index) => (
+              <g key={`trail-${index}`} className="opacity-90">
+                {trail.map((coord, i) => {
+                  if (i === 0) return null;
+                  const p1 = getCellPct(trail[i - 1]);
+                  const p2 = getCellPct(coord);
+                  return (
+                    <g key={`trail-line-${i}`}>
+                      <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#c084fc" strokeWidth="8" strokeLinecap="round" opacity="0.6" className="animate-pulse" />
+                      <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#a855f7" strokeWidth="3" strokeLinecap="round" />
+                    </g>
+                  );
+                })}
+              </g>
+            ));
+          })()}
+
+          {/* Idea 3: Pattern Trail (Cyan/Blue) */}
+          {ideaId === 3 && (() => {
+            const { completedRoutes } = detectPatterns(pieces, gridCells || {}, version || 'standard');
+            return completedRoutes.map((trail, index) => (
+              <g key={`pattern-trail-${index}`} className="opacity-90">
+                {trail.map((coord, i) => {
+                  if (i === 0) return null;
+                  const p1 = getCellPct(trail[i - 1]);
+                  const p2 = getCellPct(coord);
+                  return (
+                    <g key={`pattern-line-${i}`}>
+                      <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#38bdf8" strokeWidth="8" strokeLinecap="round" opacity="0.6" className="animate-pulse" />
+                      <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#0284c7" strokeWidth="3" strokeLinecap="round" />
+                    </g>
+                  );
+                })}
+              </g>
+            ));
+          })()}
+
+          {/* Idea 5: Geometry Wall (Green polygons/symmetry axes) */}
+          {ideaId === 5 && (() => {
+            const { activeWalls: geomWalls } = detectGeometryWalls(pieces, version || 'standard');
+            return geomWalls.map((wall, index) => {
+              if (wall.type === 'line') {
+                const sorted = [...wall.coords].sort();
+                const p1 = getCellPct(sorted[0]);
+                const p2 = getCellPct(sorted[sorted.length - 1]);
+                return (
+                  <g key={`geom-line-${index}`}>
+                    <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#34d399" strokeWidth="12" strokeLinecap="round" opacity="0.4" />
+                    <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#10b981" strokeWidth="4" strokeLinecap="round" />
+                  </g>
+                );
+              }
+              if (wall.type === 'triangle' || wall.type === 'square') {
+                const points = wall.coords.map(c => {
+                  const pct = getCellPct(c);
+                  return {
+                    coord: c,
+                    xVal: parseFloat(pct.x),
+                    yVal: parseFloat(pct.y),
+                    xStr: pct.x,
+                    yStr: pct.y
+                  };
+                });
+                const cx = points.reduce((sum, p) => sum + p.xVal, 0) / points.length;
+                const cy = points.reduce((sum, p) => sum + p.yVal, 0) / points.length;
+                points.sort((a, b) => Math.atan2(a.yVal - cy, a.xVal - cx) - Math.atan2(b.yVal - cy, b.xVal - cx));
+                const pointsStr = points.map(p => `${p.xStr},${p.yStr}`).join(' ');
+
+                return (
+                  <g key={`geom-poly-${index}`}>
+                    <polygon points={pointsStr} fill="#34d399" fillOpacity="0.25" stroke="#10b981" strokeWidth="4" strokeLinejoin="round" className="animate-pulse" />
+                    {wall.weakPoints.map(wp => {
+                      const p = getCellPct(wp);
+                      return (
+                        <circle key={`weak-${wp}`} cx={p.x} cy={p.y} r="6" fill="#ef4444" stroke="#ffffff" strokeWidth="2" />
+                      );
+                    })}
+                  </g>
+                );
+              }
+              if (wall.type === 'symmetry') {
+                const p1 = getCellPct(wall.coords[0]);
+                const p2 = getCellPct(wall.coords[1]);
+                return (
+                  <g key={`geom-symm-${index}`}>
+                    <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#a855f7" strokeWidth="3" strokeDasharray="6,4" opacity="0.8" />
+                    <circle cx="50%" cy="50%" r="8" fill="#a855f7" fillOpacity="0.4" className="animate-ping" />
+                    <circle cx="50%" cy="50%" r="5" fill="#c084fc" stroke="#ffffff" strokeWidth="1.5" />
+                  </g>
+                );
+              }
+              return null;
+            });
+          })()}
+
+          {/* Idea 10: Build-a-Board Gold Paths */}
+          {ideaId === 10 && (() => {
+            const routes = findConnectedPaths(gridCells || {}, gridSize, pieces);
+            return routes.map((route, index) => {
+              return route.path.map((coord, i) => {
+                if (i === 0) return null;
+                const p1 = getCellPct(route.path[i - 1]);
+                const p2 = getCellPct(coord);
+                return (
+                  <g key={`route-${index}-line-${i}`}>
+                    <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#fbbf24" strokeWidth="12" strokeLinecap="round" opacity="0.6" className="animate-pulse" />
+                    <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#d97706" strokeWidth="4" strokeLinecap="round" />
+                  </g>
+                );
+              });
+            });
+          })()}
         </svg>
 
         {/* Cells Grid */}
@@ -116,6 +290,8 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 onCellClick={() => onCellClick(coordinate)}
                 classroomMode={classroomMode}
                 cellConfig={config}
+                satisfiesLogicRule={checkSatisfiesLogicRule(coordinate, number)}
+                energyCost={getEnergyCostForCell(coordinate)}
               />
             );
           })}

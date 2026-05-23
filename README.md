@@ -30,7 +30,7 @@ Bagh-Bakri is a classic asymmetric strategy game where one team controls the **T
 
 ## 🚀 Key Features
 
-* **10 STEM Game Ideas**: A catalog of 10 redesigned game variations, starting with a fully playable **Math Wall Edition** (Beginner, Standard, and Advanced presets) and including 9 coming soon concepts.
+* **10 Fully Playable STEM Game Ideas**: A complete catalog of 10 deeply customized, fully playable game variations—ranging from Math Walls, Number Trails, Pattern Trails, Energy Quests, Geometry Walls, Probability Captures (with a premium animated dice overlay), Ecosystem Balances (with hunger mechanics), Data Hunts, Logic Labs, and custom Build-a-Board engineering toolbelts.
 * **Classroom Mode**: A custom pedagogy layout showing high-visibility tasks, student roles (Rule Checker, STEM Calculator, Move Recorder, Strategy Explainer), and collaborative group reflection questions.
 * **Interactive STEM Calculation Hub**: A live formula panel that updates with every move, visualizing the addition formulas and tracking progress bars for win conditions.
 * **Move History Log**: A fully featured sidebar log tracking every turn, with support for downloading the match logs as **Plain Text (.txt)** or **CSV Spreadsheet (.csv)**.

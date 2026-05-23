@@ -70,3 +70,27 @@
 .animate-pulse-gentle {
   animation: pulse-gentle 3.5s ease-in-out infinite;
 }
+
+/* Swaying Grass animations for Idea 7 */
+@keyframes sway {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(8deg); }
+}
+@keyframes sway-slow {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(4deg); }
+}
+@keyframes sway-fast {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(12deg); }
+}
+
+.animate-sway {
+  animation: sway 2.5s ease-in-out infinite;
+}
+.animate-sway-slow {
+  animation: sway-slow 3.5s ease-in-out infinite;
+}
+.animate-sway-fast {
+  animation: sway-fast 1.8s ease-in-out infinite;
+}

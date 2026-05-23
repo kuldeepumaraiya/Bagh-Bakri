@@ -13,6 +13,8 @@ interface CellProps {
   onCellClick: () => void;
   classroomMode: boolean;
   cellConfig?: CellConfig;
+  satisfiesLogicRule?: boolean;
+  energyCost?: number | null;
 }
 
 const getTilePathMarkup = (tileType: string, rotation: number = 0) => {
@@ -85,6 +87,7 @@ export const Cell: React.FC<CellProps> = ({
   coordinate, nodeNumber, occupyingPiece, isGoatProtected,
   isSelected, isMoveHighlight, isCaptureHighlight, isWallHighlight,
   onCellClick, classroomMode, cellConfig,
+  satisfiesLogicRule, energyCost,
 }) => {
   const isTiger = occupyingPiece?.type === 'tiger';
   const isGoat  = occupyingPiece?.type === 'goat';
@@ -140,6 +143,7 @@ export const Cell: React.FC<CellProps> = ({
   else if (isSelected)         bg = 'bg-amber-100 border-amber-500 ring-2 ring-amber-300 scale-[1.02]';
   else if (isTiger)            bg = 'bg-rose-50 border-rose-300 shadow-sm';
   else if (isGoat)             bg = 'bg-emerald-50 border-emerald-300 shadow-sm';
+  else if (satisfiesLogicRule) bg = `${habitatBg} border-indigo-400 ring-2 ring-indigo-200/50 hover:bg-indigo-50/10 hover:border-indigo-500`;
 
   // Number/Symbol colour
   let numColor = 'text-slate-400';
@@ -165,6 +169,42 @@ export const Cell: React.FC<CellProps> = ({
       <span className="text-xs font-bold text-slate-300 pointer-events-none select-none">
         {syms[cellConfig.symbol]}
       </span>
+    );
+  };
+
+  const renderVegetation = () => {
+    if (cellConfig?.grassCount === undefined || cellConfig.grassCount <= 0 || emoji) return null;
+    const count = cellConfig.grassCount;
+    return (
+      <div className="absolute bottom-1 right-1 flex items-end justify-end pointer-events-none select-none z-10 h-7 w-7">
+        <svg viewBox="0 0 40 40" className="w-full h-full">
+          {/* Swaying grass blade 1 */}
+          <path
+            d="M 15 35 Q 12 20 5 15 Q 15 22 20 35"
+            fill="#10b981"
+            className="animate-sway-slow origin-bottom"
+          />
+          {/* Swaying grass blade 2 */}
+          {count >= 2 && (
+            <path
+              d="M 20 35 Q 22 15 30 10 Q 25 20 22 35"
+              fill="#059669"
+              className="animate-sway-fast origin-bottom"
+            />
+          )}
+          {/* Swaying grass blade 3 */}
+          {count >= 3 && (
+            <path
+              d="M 18 35 Q 18 10 12 5 Q 16 16 18 35"
+              fill="#34d399"
+              className="animate-sway origin-bottom"
+            />
+          )}
+        </svg>
+        <span className="absolute -top-1 -right-1 text-[8px] font-black text-emerald-700 bg-emerald-100/90 rounded-full h-3.5 w-3.5 flex items-center justify-center border border-emerald-300">
+          {count}
+        </span>
+      </div>
     );
   };
 
@@ -207,6 +247,13 @@ export const Cell: React.FC<CellProps> = ({
         </span>
       )}
 
+      {/* Pre-flight Energy Cost Indicator for Idea 4 */}
+      {(isMoveHighlight || isCaptureHighlight) && energyCost !== undefined && energyCost !== null && (
+        <span className="absolute top-1 right-1 text-[9px] font-black text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded-full border border-sky-200 shadow-2xs leading-none z-30 animate-pulse">
+          ⚡ -{energyCost}
+        </span>
+      )}
+
       {/* Protected shield for goat */}
       {isGoat && isGoatProtected && (
         <span className="absolute top-0.5 left-0.5 text-base leading-none select-none pointer-events-none drop-shadow-md z-30" title="Protected!">
@@ -214,12 +261,19 @@ export const Cell: React.FC<CellProps> = ({
         </span>
       )}
 
-      {/* Grass count display for Idea 7 */}
-      {cellConfig?.grassCount !== undefined && cellConfig.grassCount > 0 && !emoji && (
-        <span className="absolute bottom-1 right-1 text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1 rounded border border-emerald-100 flex items-center gap-0.5 select-none z-10">
-          🌿 {cellConfig.grassCount}
+      {/* Swaying Grass Sprite display for Idea 7 */}
+      {renderVegetation()}
+
+      {/* Cell value badge when occupied — bottom-right */}
+      {emoji && (
+        <span 
+          className="absolute bottom-1 right-1.5 text-[9px] font-black text-slate-600 bg-slate-100 border border-slate-200 px-1 py-0.5 rounded shadow-3xs leading-none select-none z-10"
+          title={`Cell Value: ${nodeNumber}`}
+        >
+          {nodeNumber}
         </span>
       )}
+
 
       {/* Main content: Piece emoji or node number/pattern symbol */}
       {emoji ? (

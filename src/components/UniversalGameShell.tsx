@@ -9,6 +9,7 @@ import { ClassroomModePanel } from './ClassroomModePanel';
 import { getGameLogic } from '../utils/gameLogicRegistry';
 import { RULE_DECK } from '../utils/logicLabLogic';
 import { findConnectedPaths } from '../utils/buildBoardLogic';
+import { getNeighbors } from '../utils/boardHelpers';
 import {
   RotateCcw,
   ArrowLeft,
@@ -54,6 +55,27 @@ export const UniversalGameShell: React.FC<UniversalGameShellProps> = ({ config, 
   const [teacherMode, setTeacherMode] = useState(false);
   const [history, setHistory] = useState<GameHistorySnapshot[]>([]);
 
+  // Special Dice Battle Overlay States (Idea 6)
+  const [diceBattleState, setDiceBattleState] = useState<{
+    active: boolean;
+    attacker: Piece | null;
+    target: Piece | null;
+    threshold: number;
+    activeChance: string;
+    modifierMsg: string;
+    targetCoord: string | null;
+  } | null>(null);
+
+  const [isRollingDice, setIsRollingDice] = useState(false);
+  const [currentRolledFace, setCurrentRolledFace] = useState<number | null>(null);
+  const [userPrediction, setUserPrediction] = useState<'success' | 'fail' | null>(null);
+  const [battleOutcome, setBattleOutcome] = useState<{
+    succeeded: boolean;
+    roll: number;
+    predictionCorrect: boolean | null;
+    isEscaping: boolean;
+  } | null>(null);
+
   // Special Placement States (Idea 10)
   const [placementMode, setPlacementMode] = useState<'none' | 'bridge' | 'block' | 'rotate' | 'remove'>('none');
 
@@ -75,6 +97,11 @@ export const UniversalGameShell: React.FC<UniversalGameShellProps> = ({ config, 
     setWinner(null);
     setHistory([]);
     setPlacementMode('none');
+    setDiceBattleState(null);
+    setIsRollingDice(false);
+    setCurrentRolledFace(null);
+    setUserPrediction(null);
+    setBattleOutcome(null);
 
     // Customized start message
     let startMsg = 'Game started. Goats move first.';
@@ -409,6 +436,61 @@ export const UniversalGameShell: React.FC<UniversalGameShellProps> = ({ config, 
     const isCapture = captureHighlights.includes(coordinate);
 
     if (isMove || isCapture) {
+      if (isCapture && ideaId === 6) {
+        const targetGoat = pieces.find(p => p.position === coordinate);
+        if (targetGoat && selectedPiece) {
+          const neighbors = getNeighbors(coordinate, preset.gridSize);
+          const nearbyCount = pieces.filter(p => p.type === 'goat' && p.position !== coordinate && neighbors.includes(p.position)).length;
+
+          let baseThreshold = 3;
+          let baseChanceStr = 'High';
+          if (nearbyCount === 1) {
+            baseThreshold = 4;
+            baseChanceStr = 'Medium';
+          } else if (nearbyCount >= 2) {
+            baseThreshold = 5;
+            baseChanceStr = 'Low';
+          }
+
+          let modifierInfo = '';
+          let activeChance = baseChanceStr;
+
+          const tigerCell = gridCells[selectedPiece.position];
+          if (tigerCell && tigerCell.habitat === 'hill') {
+            if (activeChance === 'Low') activeChance = 'Medium';
+            else if (activeChance === 'Medium') activeChance = 'High';
+            modifierInfo = 'Tiger on Hill Power Cell: Chance Improved +1 Level!';
+          }
+
+          if (version === 'advanced') {
+            const goatCell = gridCells[coordinate];
+            if (goatCell && goatCell.habitat === 'forest') {
+              if (activeChance === 'High') activeChance = 'Medium';
+              else if (activeChance === 'Medium') activeChance = 'Low';
+              modifierInfo += (modifierInfo ? ' · ' : '') + 'Goat in Forest: Chance Reduced -1 Level!';
+            }
+          }
+
+          let finalThreshold = 3;
+          if (activeChance === 'Medium') finalThreshold = 4;
+          else if (activeChance === 'Low') finalThreshold = 5;
+
+          setDiceBattleState({
+            active: true,
+            attacker: selectedPiece,
+            target: targetGoat,
+            threshold: finalThreshold,
+            activeChance,
+            modifierMsg: modifierInfo || 'No active terrain modifiers',
+            targetCoord: coordinate
+          });
+
+          setUserPrediction(null);
+          setBattleOutcome(null);
+          return;
+        }
+      }
+
       recordHistory(pieces, moveLog);
 
       const res = logicEngine.applyMove(
@@ -518,6 +600,100 @@ export const UniversalGameShell: React.FC<UniversalGameShellProps> = ({ config, 
     setGoatTurnsCount(nextGoatTurns);
 
     setCurrentPlayer(isGoatTurn ? 'tiger' : 'goat');
+  };
+
+  const handleResolveDiceBattle = (finalRoll: number) => {
+    if (!diceBattleState || !diceBattleState.attacker || !diceBattleState.targetCoord) return;
+
+    recordHistory(pieces, moveLog);
+
+    const nextExtra = {
+      ...extraState,
+      prediction: userPrediction,
+      manualDiceRoll: finalRoll
+    };
+
+    const res = logicEngine.applyMove(
+      diceBattleState.attacker,
+      diceBattleState.targetCoord,
+      pieces,
+      gridCells,
+      currentPlayer,
+      version,
+      nextExtra,
+      true
+    );
+
+    let nextCaptured = capturedGoatsCount;
+    if (res.captureStatus === 'success') {
+      nextCaptured += 1;
+    }
+
+    const isGoatTurn = currentPlayer === 'goat';
+    const nextGoatTurns = isGoatTurn ? goatTurnsCount + 1 : goatTurnsCount;
+
+    setPieces(res.pieces);
+    setGridCells(res.gridCells);
+    setExtraState(res.extraState);
+    setCapturedGoatsCount(nextCaptured);
+    setGoatTurnsCount(nextGoatTurns);
+    setLastCalculation(res.calculationMsg);
+
+    const succeeded = finalRoll >= diceBattleState.threshold;
+    const isEscaping = res.extraState.isEscaping === true;
+
+    setBattleOutcome({
+      succeeded,
+      roll: finalRoll,
+      predictionCorrect: userPrediction ? (userPrediction === 'success' ? succeeded : !succeeded) : null,
+      isEscaping
+    });
+
+    if (isEscaping) {
+      const escapingGoat = res.pieces.find(p => p.id === res.extraState.escapingGoatId);
+      if (escapingGoat) {
+        setSelectedPiece(escapingGoat);
+      }
+    } else {
+      setSelectedPiece(null);
+    }
+
+    const winCheck = logicEngine.checkWinCondition(
+      res.pieces,
+      res.gridCells,
+      nextCaptured,
+      nextGoatTurns,
+      version,
+      res.extraState,
+      0
+    );
+
+    const entry: MoveLogEntry = {
+      turnNumber: moveLog.length + 1,
+      team: isGoatTurn ? 'Goats' : 'Tigers',
+      pieceMoved: diceBattleState.attacker.label,
+      from: diceBattleState.attacker.position,
+      to: diceBattleState.targetCoord,
+      captureStatus: res.captureStatus,
+      mathWallStatus: 'none',
+      calculationShown: res.calculationMsg,
+      activeMathWallsCount: 0,
+    };
+    setMoveLog([...moveLog, entry]);
+
+    if (winCheck) {
+      setWinner(winCheck);
+    }
+
+    setCurrentPlayer(isGoatTurn ? 'tiger' : 'goat');
+  };
+
+  const handleCloseDiceBattle = () => {
+    setDiceBattleState(null);
+    setBattleOutcome(null);
+    setIsRollingDice(false);
+    setCurrentRolledFace(null);
+    setUserPrediction(null);
   };
 
   const handleMakePrediction = (predId: string, predName: string) => {
@@ -1348,6 +1524,9 @@ export const UniversalGameShell: React.FC<UniversalGameShellProps> = ({ config, 
             onCellClick={handleCellClick}
             classroomMode={classroomMode}
             gridCells={gridCells}
+            ideaId={ideaId}
+            version={version}
+            extraState={extraState}
           />
         </div>
 
@@ -1484,6 +1663,216 @@ export const UniversalGameShell: React.FC<UniversalGameShellProps> = ({ config, 
           )}
         </div>
       </div>
+
+      {/* Premium Digital Dice Roll Battle Overlay (Idea 6) */}
+      {diceBattleState?.active && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-fade-in">
+          <div className="w-full max-w-xl bg-gradient-to-b from-slate-900 to-slate-955 border border-slate-800 rounded-3xl p-6 md:p-8 text-center shadow-2xl relative overflow-hidden space-y-6">
+            
+            {/* Glowing neon decorative background */}
+            <div className="absolute -top-24 -left-24 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-rose-500/10 rounded-full blur-3xl pointer-events-none" />
+
+            {/* Header / Title */}
+            <div>
+              <div className="inline-flex items-center justify-center gap-1.5 px-3 py-1 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-full text-[10px] font-black tracking-widest uppercase mb-2">
+                <Sparkles className="w-3.5 h-3.5" /> Probability Dice Arena
+              </div>
+              <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight">
+                TIGER CAPTURE BATTLE
+              </h2>
+              <p className="text-slate-400 text-xs mt-1.5 max-w-md mx-auto font-medium">
+                Tigers must roll equal to or higher than the target threshold to execute a capture. Terrains modify these chances.
+              </p>
+            </div>
+
+            {/* Attacker vs Target details */}
+            <div className="grid grid-cols-7 items-center gap-2 bg-slate-800/40 border border-slate-800 rounded-2xl p-4">
+              <div className="col-span-3 text-center">
+                <div className="text-3xl animate-bounce-gentle">🐯</div>
+                <div className="text-xs font-black text-slate-300 mt-1">Tiger Attacker</div>
+                <span className="inline-block text-[9px] bg-rose-500/10 text-rose-400 border border-rose-500/20 px-1.5 py-0.5 rounded mt-1 font-bold">
+                  {diceBattleState.attacker?.label} ({diceBattleState.attacker?.position})
+                </span>
+              </div>
+
+              <div className="col-span-1 flex flex-col items-center justify-center text-slate-500 font-black italic text-lg select-none">
+                VS
+              </div>
+
+              <div className="col-span-3 text-center">
+                <div className="text-3xl animate-pulse-gentle">🐐</div>
+                <div className="text-xs font-black text-slate-300 mt-1">Goat Target</div>
+                <span className="inline-block text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded mt-1 font-bold">
+                  {diceBattleState.target?.label} ({diceBattleState.target?.position})
+                </span>
+              </div>
+            </div>
+
+            {/* Threshold & Chance Dial */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3.5">
+              <div className="flex justify-between items-center text-xs font-bold">
+                <span className="text-slate-400">Capture Chance Level:</span>
+                <span className={`px-2.5 py-0.5 rounded-full border text-[11px] font-black uppercase tracking-wider ${
+                  diceBattleState.activeChance === 'High'
+                    ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+                    : diceBattleState.activeChance === 'Medium'
+                    ? 'text-amber-400 bg-amber-500/10 border-amber-500/20'
+                    : 'text-rose-400 bg-rose-500/10 border-rose-500/20'
+                }`}>
+                  {diceBattleState.activeChance}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center text-xs font-bold border-t border-slate-800/60 pt-3">
+                <span className="text-slate-400">Winning Dice Outcomes:</span>
+                <span className="text-indigo-400 font-extrabold">
+                  🎲 {diceBattleState.threshold}+ (i.e. {Array.from({ length: 7 - diceBattleState.threshold }, (_, i) => diceBattleState.threshold + i).join(', ')})
+                </span>
+              </div>
+
+              {/* Progress Indicator Dots */}
+              <div className="flex justify-center gap-1.5 pt-1">
+                {[1, 2, 3, 4, 5, 6].map(num => {
+                  const isWinning = num >= diceBattleState.threshold;
+                  return (
+                    <div
+                      key={num}
+                      className={`w-7 h-7 flex items-center justify-center rounded-lg border text-xs font-extrabold shadow-sm select-none transition-all ${
+                        isWinning
+                          ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400 scale-105'
+                          : 'bg-slate-850 border-slate-800 text-slate-500 opacity-55'
+                      }`}
+                    >
+                      {num}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <p className="text-[10px] text-indigo-400 font-semibold italic">
+                ℹ️ Modifier details: {diceBattleState.modifierMsg}
+              </p>
+            </div>
+
+            {/* Prediction Panel */}
+            {!battleOutcome && (
+              <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 text-center space-y-2">
+                <p className="text-xs font-black text-slate-300">
+                  Step 1: Predict the outcome! Correct predictions earn +1 token.
+                </p>
+                <div className="flex justify-center gap-3">
+                  <button
+                    onClick={() => setUserPrediction('success')}
+                    className={`flex-1 max-w-[170px] py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                      userPrediction === 'success'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg scale-102 font-extrabold'
+                        : 'bg-slate-800 text-slate-350 border-slate-750 hover:border-slate-655'
+                    }`}
+                  >
+                    🚀 Success (Roll ≥ {diceBattleState.threshold})
+                  </button>
+                  <button
+                    onClick={() => setUserPrediction('fail')}
+                    className={`flex-1 max-w-[170px] py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                      userPrediction === 'fail'
+                        ? 'bg-rose-600 text-white border-rose-600 shadow-lg scale-102 font-extrabold'
+                        : 'bg-slate-800 text-slate-355 border-slate-750 hover:border-slate-655'
+                    }`}
+                  >
+                    💥 Failure (Roll &lt; {diceBattleState.threshold})
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Rolling Arena & Dice Graphics */}
+            <div className="flex flex-col items-center justify-center py-2 space-y-4">
+              {/* Giant Digital Dice Block */}
+              <div className={`relative w-20 h-20 bg-white text-slate-900 border-4 border-slate-200 rounded-2xl shadow-xl flex items-center justify-center text-4xl font-extrabold select-none transition-all ${
+                isRollingDice ? 'animate-spin cursor-not-allowed bg-indigo-50 border-indigo-300' : ''
+              }`}>
+                {isRollingDice ? (
+                  <span>🎲</span>
+                ) : currentRolledFace !== null ? (
+                  <span>
+                    {currentRolledFace === 1 && '⚀'}
+                    {currentRolledFace === 2 && '⚁'}
+                    {currentRolledFace === 3 && '⚂'}
+                    {currentRolledFace === 4 && '⚃'}
+                    {currentRolledFace === 5 && '⚄'}
+                    {currentRolledFace === 6 && '⚅'}
+                  </span>
+                ) : (
+                  <span className="text-slate-300">?</span>
+                )}
+              </div>
+
+              {/* Rolling Triggers / Resolution */}
+              {!battleOutcome ? (
+                <button
+                  disabled={isRollingDice}
+                  onClick={() => {
+                    setIsRollingDice(true);
+                    let spins = 0;
+                    const interval = setInterval(() => {
+                      setCurrentRolledFace(Math.floor(Math.random() * 6) + 1);
+                      spins++;
+                      if (spins >= 10) {
+                        clearInterval(interval);
+                        const finalRoll = Math.floor(Math.random() * 6) + 1;
+                        setCurrentRolledFace(finalRoll);
+                        setIsRollingDice(false);
+                        handleResolveDiceBattle(finalRoll);
+                      }
+                    }, 80);
+                  }}
+                  className="btn-primary w-full max-w-[240px] py-3 rounded-2xl text-sm font-extrabold shadow-md hover:scale-102 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {isRollingDice ? 'Shaking Dice Box...' : '🎲 Roll Dice Now'}
+                </button>
+              ) : (
+                <div className="w-full space-y-4 animate-fade-in">
+                  {/* Glowing Outcome Banner */}
+                  <div className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-1 shadow-lg ${
+                    battleOutcome.succeeded
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                      : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                  }`}>
+                    <span className="text-xs font-black tracking-widest uppercase">
+                      BATTLE RESOLVED
+                    </span>
+                    <span className="text-xl font-black">
+                      {battleOutcome.succeeded ? '🐯 GOAT CAPTURED!' : '🏃 GOAT ATTEMPTS ESCAPE!'}
+                    </span>
+                    <span className="text-[11px] font-bold text-slate-400 mt-1">
+                      Rolled a {battleOutcome.roll} (Threshold: {diceBattleState.threshold})
+                    </span>
+                  </div>
+
+                  {/* Prediction Reward Status */}
+                  {battleOutcome.predictionCorrect !== null && (
+                    <p className={`text-xs font-bold ${battleOutcome.predictionCorrect ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      {battleOutcome.predictionCorrect
+                        ? '✓ Prediction Correct! Token added to wallet.'
+                        : '✗ Prediction Incorrect. No tokens awarded.'}
+                    </p>
+                  )}
+
+                  {/* Continue Button */}
+                  <button
+                    onClick={handleCloseDiceBattle}
+                    className="btn-primary w-full max-w-[240px] py-2.5 rounded-2xl text-xs font-extrabold shadow cursor-pointer transition-all hover:scale-102"
+                  >
+                    {battleOutcome.isEscaping ? 'Proceed to Escape Route' : '✓ End Turn'}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

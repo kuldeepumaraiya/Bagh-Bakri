@@ -206,7 +206,13 @@ export const probabilityCaptureLogic: GameLogicEngine = {
       }
 
       // Roll a digital 6-sided dice
-      const diceRoll = Math.floor(Math.random() * 6) + 1;
+      const diceRoll = (nextExtra.manualDiceRoll !== undefined && nextExtra.manualDiceRoll !== null)
+        ? nextExtra.manualDiceRoll
+        : Math.floor(Math.random() * 6) + 1;
+
+      // Clean up the manual roll so it doesn't linger
+      delete nextExtra.manualDiceRoll;
+
       const succeeded = diceRoll >= finalThreshold;
 
       // Handle user predictions
