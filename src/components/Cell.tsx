@@ -15,6 +15,7 @@ interface CellProps {
   cellConfig?: CellConfig;
   satisfiesLogicRule?: boolean;
   energyCost?: number | null;
+  showCellNumber?: boolean;
 }
 
 const getTilePathMarkup = (tileType: string, rotation: number = 0) => {
@@ -87,7 +88,7 @@ export const Cell: React.FC<CellProps> = ({
   coordinate, nodeNumber, occupyingPiece, isGoatProtected,
   isSelected, isMoveHighlight, isCaptureHighlight, isWallHighlight,
   onCellClick, classroomMode, cellConfig,
-  satisfiesLogicRule, energyCost,
+  satisfiesLogicRule, energyCost, showCellNumber = true,
 }) => {
   const isTiger = occupyingPiece?.type === 'tiger';
   const isGoat  = occupyingPiece?.type === 'goat';
@@ -256,8 +257,15 @@ export const Cell: React.FC<CellProps> = ({
 
       {/* Protected shield for goat */}
       {isGoat && isGoatProtected && (
-        <span className="absolute top-0.5 left-0.5 text-base leading-none select-none pointer-events-none drop-shadow-md z-30" title="Protected!">
-          🛡️
+        <span className="absolute top-0.5 left-0.5 text-xs leading-none select-none pointer-events-none drop-shadow z-30 flex items-center gap-0.5" title="Protected!">
+          👥🛡️
+        </span>
+      )}
+
+      {/* Forest cover for goat */}
+      {isGoat && cellConfig?.habitat === 'forest' && (
+        <span className="absolute top-0.5 right-0.5 text-xs leading-none select-none pointer-events-none drop-shadow z-30 animate-pulse" title="Forest Cover!">
+          🍃
         </span>
       )}
 
@@ -265,7 +273,7 @@ export const Cell: React.FC<CellProps> = ({
       {renderVegetation()}
 
       {/* Cell value badge when occupied — bottom-right */}
-      {emoji && (
+      {emoji && showCellNumber && (
         <span 
           className="absolute bottom-1 right-1.5 text-[9px] font-black text-slate-600 bg-slate-100 border border-slate-200 px-1 py-0.5 rounded shadow-3xs leading-none select-none z-10"
           title={`Cell Value: ${nodeNumber}`}
@@ -289,9 +297,11 @@ export const Cell: React.FC<CellProps> = ({
       ) : (
         <div className="flex flex-col items-center justify-center select-none z-10">
           {renderSymbol()}
-          <span className={`text-xl font-black leading-none ${numColor}`}>
-            {nodeNumber}
-          </span>
+          {showCellNumber && (
+            <span className={`text-xl font-black leading-none ${numColor}`}>
+              {nodeNumber}
+            </span>
+          )}
         </div>
       )}
 
@@ -306,6 +316,16 @@ export const Cell: React.FC<CellProps> = ({
           {occupyingPiece.hunger !== undefined && (
             <span className="text-[8px] font-extrabold text-orange-700 bg-orange-50 px-0.5 rounded leading-none border border-orange-100">
               🍗{occupyingPiece.hunger}
+            </span>
+          )}
+          {occupyingPiece.hunger !== undefined && occupyingPiece.hunger >= 6 && (
+            <span className="text-[8px] font-black text-rose-700 bg-rose-50 px-1 py-0.5 rounded leading-none border border-rose-200 animate-pulse" title="Weak Tiger: Straight moves only, cannot break protection!">
+              🥱 Weak
+            </span>
+          )}
+          {isTiger && cellConfig?.habitat === 'hill' && (
+            <span className="text-[8px] font-black text-amber-700 bg-amber-50 px-1 py-0.5 rounded leading-none border border-amber-200 animate-bounce" title="Hill Advantage: Tiger can break Safe Herd protection!">
+              ⚡ Advantage
             </span>
           )}
           {occupyingPiece.thirsty && (

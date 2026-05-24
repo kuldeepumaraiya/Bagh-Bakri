@@ -18,11 +18,11 @@ export const VERSION_PRESETS: Record<GameVersion, VersionConfig> = {
     name: 'Beginner Version',
     gridSize: 5,
     tigersCount: 1,
-    goatsCount: 4,
+    goatsCount: 5,
     goatSurvivalTurns: 8,
     goatActiveWallsRequired: 3,
     tigerCapturesRequired: 2,
-    description: 'Best for first-time players and younger primary students. Fast gameplay with 1 Tiger and 4 Goats.',
+    description: 'Best for first-time players and younger primary students. Fast gameplay with 1 Tiger and 5 Goats.',
     cellNumbers: {
       // Row 5
       "A5": 5, "B5": 2, "C5": 4, "D5": 1, "E5": 3,
@@ -40,7 +40,8 @@ export const VERSION_PRESETS: Record<GameVersion, VersionConfig> = {
       { id: 'G1', type: 'goat', label: 'G1', position: 'A1' },
       { id: 'G2', type: 'goat', label: 'G2', position: 'E1' },
       { id: 'G3', type: 'goat', label: 'G3', position: 'A5' },
-      { id: 'G4', type: 'goat', label: 'G4', position: 'E5' }
+      { id: 'G4', type: 'goat', label: 'G4', position: 'E5' },
+      { id: 'G5', type: 'goat', label: 'G5', position: 'C1' }
     ]
   },
   standard: {

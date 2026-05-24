@@ -25,6 +25,7 @@ import {
   Sparkles,
   Layers,
   GraduationCap,
+  Shield,
 } from 'lucide-react';
 
 interface UniversalGameShellProps {
@@ -78,6 +79,7 @@ export const UniversalGameShell: React.FC<UniversalGameShellProps> = ({ config, 
 
   // Special Placement States (Idea 10)
   const [placementMode, setPlacementMode] = useState<'none' | 'bridge' | 'block' | 'rotate' | 'remove'>('none');
+  const [showMoveGuides, setShowMoveGuides] = useState(false);
 
   // Trigger setup reset on load or when version changes
   useEffect(() => {
@@ -86,12 +88,21 @@ export const UniversalGameShell: React.FC<UniversalGameShellProps> = ({ config, 
 
   const handleReset = () => {
     const init = logicEngine.initializeGame(version);
-    setPieces(init.pieces);
+    
+    // Do not pre-place pieces, start with empty positions! (Except for Logic Lab Idea 9)
+    const unplacedPieces = ideaId === 9
+      ? init.pieces
+      : init.pieces.map(p => ({
+          ...p,
+          position: "",
+        }));
+
+    setPieces(unplacedPieces);
     setGridCells(init.gridCells);
     setExtraState(init.extraState);
     setCapturedGoatsCount(0);
     setGoatTurnsCount(0);
-    setCurrentPlayer('goat');
+    setCurrentPlayer(ideaId === 9 ? 'goat' : 'tiger'); // Goats move first in Logic Lab, Tigers start placing in others!
     setSelectedPiece(null);
     setMoveLog([]);
     setWinner(null);
@@ -104,11 +115,11 @@ export const UniversalGameShell: React.FC<UniversalGameShellProps> = ({ config, 
     setBattleOutcome(null);
 
     // Customized start message
-    let startMsg = 'Game started. Goats move first.';
-    if (ideaId === 4) startMsg = 'Energy quest active! Goats start with 5 energy, Tigers with 8.';
-    else if (ideaId === 7) startMsg = 'Ecosystem balance active. Maintain ecological harmony!';
-    else if (ideaId === 9) startMsg = 'Logic Lab online. Match rule conditions to execute moves.';
-    setLastCalculation(startMsg);
+    setLastCalculation(
+      ideaId === 9
+        ? 'Logic Lab initiated. Active rule: Even Path. Goats\' turn to move.'
+        : 'Placement Phase: Alternating turns to place pieces. Tigers start first.'
+    );
   };
 
   const handleUndo = () => {
@@ -127,6 +138,118 @@ export const UniversalGameShell: React.FC<UniversalGameShellProps> = ({ config, 
     setLastCalculation(snap.lastCalculation);
     setWinner(null);
     setPlacementMode('none');
+  };
+
+  const handleSkipTurn = () => {
+    recordHistory(pieces, moveLog);
+    const nextPlayer = currentPlayer === 'goat' ? 'tiger' : 'goat';
+    
+    let calcMsg = `${currentPlayer === 'goat' ? 'Goat' : 'Tiger'} team has no legal moves and skipped their turn.`;
+    
+    let nextExtra = { ...extraState };
+    if (ideaId === 9) {
+      const activeRulesDeck = version === 'beginner' 
+        ? RULE_DECK.slice(0, 4) 
+        : version === 'standard' 
+        ? RULE_DECK.slice(4, 8) 
+        : RULE_DECK.slice(8, 12);
+      
+      // If tiger is skipping (or if both skip)
+      if (currentPlayer === 'tiger') {
+        const nextIdx = ((nextExtra.activeRuleIndex ?? 0) + 1) % activeRulesDeck.length;
+        nextExtra.activeRuleIndex = nextIdx;
+        nextExtra.rulesCycleCount = (nextExtra.rulesCycleCount || 0) + 1;
+        const newRule = activeRulesDeck[nextIdx];
+        calcMsg += ` Round complete. Next condition activated: [${newRule.name}].`;
+      }
+    }
+    
+    setExtraState(nextExtra);
+    setLastCalculation(calcMsg);
+    
+    const entry: MoveLogEntry = {
+      turnNumber: moveLog.length + 1,
+      team: currentPlayer === 'goat' ? 'Goats' : 'Tigers',
+      pieceMoved: 'Skip Turn',
+      from: 'None',
+      to: 'None',
+      captureStatus: 'none',
+      mathWallStatus: 'none',
+      calculationShown: calcMsg,
+      activeMathWallsCount: 0,
+    };
+    setMoveLog([...moveLog, entry]);
+    
+    if (currentPlayer === 'goat') {
+      setGoatTurnsCount(prev => prev + 1);
+    }
+    
+    const winCheck = logicEngine.checkWinCondition(
+      pieces,
+      gridCells,
+      capturedGoatsCount,
+      currentPlayer === 'goat' ? goatTurnsCount + 1 : goatTurnsCount,
+      version,
+      nextExtra,
+      0
+    );
+    if (winCheck) setWinner(winCheck);
+    
+    setCurrentPlayer(nextPlayer);
+  };
+
+  const handleReshuffle = () => {
+    recordHistory(pieces, moveLog);
+
+    const colLetters = Array.from({ length: preset.gridSize }, (_, i) => String.fromCharCode(65 + i));
+    const allCells: string[] = [];
+    for (let r = 1; r <= preset.gridSize; r++) {
+      for (let c = 0; c < preset.gridSize; c++) {
+        const coord = `${colLetters[c]}${r}`;
+        if (!gridCells[coord]?.isBlocked && gridCells[coord]?.tileType !== 'block') {
+          allCells.push(coord);
+        }
+      }
+    }
+
+    const placedPieces = pieces.filter(p => p.position !== "");
+    if (placedPieces.length === 0) return;
+
+    const shuffledCells = [...allCells].sort(() => Math.random() - 0.5);
+
+    const updatedPieces = pieces.map(p => {
+      if (p.position !== "") {
+        const newPos = shuffledCells.pop();
+        return { ...p, position: newPos || p.position };
+      }
+      return p;
+    });
+
+    setPieces(updatedPieces);
+    setSelectedPiece(null);
+
+    const calc = `🎲 Pieces randomly re-shuffled on the board!`;
+    setLastCalculation(calc);
+
+    const nextExtra = { ...extraState };
+    if (ideaId === 10) {
+      const routes = findConnectedPaths(gridCells, preset.gridSize, updatedPieces, version);
+      nextExtra.activeSafeRoutes = routes.map(r => r.path);
+    }
+    setExtraState(nextExtra);
+
+    const entry: MoveLogEntry = {
+      turnNumber: moveLog.length + 1,
+      team: currentPlayer === 'goat' ? 'Goats' : 'Tigers',
+      pieceMoved: 'Re-shuffle',
+      from: 'Board',
+      to: 'Random',
+      captureStatus: 'none',
+      mathWallStatus: 'none',
+      calculationShown: calc,
+      activeMathWallsCount: 0,
+    };
+    setMoveLog([...moveLog, entry]);
   };
 
   const recordHistory = (currentPieces: Piece[], currentMoveLog: MoveLogEntry[]) => {
@@ -152,6 +275,38 @@ export const UniversalGameShell: React.FC<UniversalGameShellProps> = ({ config, 
   let wallHighlights: string[] = [];
 
   const activeProtectedGoats = logicEngine.detectProtection(pieces, gridCells, version, extraState);
+
+  // Check if current player has no legal moves (only after placement phase is done)
+  const hasUnplacedTigers = pieces.some(p => p.type === 'tiger' && p.position === "");
+  const hasUnplacedGoats = pieces.some(p => p.type === 'goat' && p.position === "");
+  const isPlacementPhase = (hasUnplacedTigers || hasUnplacedGoats) && ideaId !== 9;
+
+  const showReshuffleButton = (() => {
+    if (ideaId === 9) return true;
+    const hasUnplacedTigers = pieces.some(p => p.type === 'tiger' && p.position === "");
+    const hasUnplacedGoats = pieces.some(p => p.type === 'goat' && p.position === "");
+    const isInPlacementPhase = (hasUnplacedTigers || hasUnplacedGoats) && ideaId !== 9;
+    return !isInPlacementPhase && pieces.length > 0;
+  })();
+
+  let currentHasNoLegalMoves = false;
+  if (!isPlacementPhase && !winner && pieces.length > 0) {
+    const playerPieces = pieces.filter(p => p.type === currentPlayer);
+    let totalLegalMoves = 0;
+    playerPieces.forEach(p => {
+      if (p.position !== "") {
+        try {
+          const res = logicEngine.getLegalMoves(p, pieces, gridCells, currentPlayer, version, extraState);
+          totalLegalMoves += ((res.moveHighlights || []).length + (res.captureHighlights || []).length);
+        } catch (e) {
+          // ignore safely
+        }
+      }
+    });
+    if (totalLegalMoves === 0) {
+      currentHasNoLegalMoves = true;
+    }
+  }
 
   // If in placement/engineering mode (Idea 10), determine highlights dynamically
   if (placementMode !== 'none') {
@@ -192,15 +347,153 @@ export const UniversalGameShell: React.FC<UniversalGameShellProps> = ({ config, 
       pBridges.forEach((c: string) => moveHighlights.push(c));
       pBlocks.forEach((c: string) => moveHighlights.push(c));
     }
-  } else if (selectedPiece && !winner) {
-    const res = logicEngine.getLegalMoves(selectedPiece, pieces, gridCells, currentPlayer, version, extraState);
-    moveHighlights = res.moveHighlights;
-    captureHighlights = res.captureHighlights;
-    wallHighlights = res.wallHighlights || [];
+  } else if (!winner) {
+    // ALWAYS compute legal moves — needed for game logic validation regardless of showMoveGuides.
+    // The showMoveGuides flag only controls whether these highlights visually glow on the board.
+    const hasUnplacedTigers = pieces.some(p => p.type === 'tiger' && p.position === "");
+    const hasUnplacedGoats = pieces.some(p => p.type === 'goat' && p.position === "");
+    const isPlacementPhase = hasUnplacedTigers || hasUnplacedGoats;
+
+    if (isPlacementPhase) {
+      // All empty non-blocked cells are valid placement targets
+      const colLetters = Array.from({ length: preset.gridSize }, (_, i) => String.fromCharCode(65 + i));
+      for (let r = 1; r <= preset.gridSize; r++) {
+        for (let c = 0; c < preset.gridSize; c++) {
+          const coord = `${colLetters[c]}${r}`;
+          const occupies = pieces.some(p => p.position === coord);
+          const cell = gridCells[coord];
+          if (!occupies && !cell?.isBlocked) {
+            moveHighlights.push(coord);
+          }
+        }
+      }
+    } else if (selectedPiece && selectedPiece.position !== "") {
+      // Compute legal moves for the selected piece (only if it's actually placed on the board)
+      const res = logicEngine.getLegalMoves(selectedPiece, pieces, gridCells, currentPlayer, version, extraState);
+      moveHighlights = res.moveHighlights;
+      captureHighlights = res.captureHighlights;
+      wallHighlights = res.wallHighlights || [];
+    }
   }
+
+  // Visual highlights — only glow cells when Move Guides toggle is ON.
+  // Game logic (handleCellClick) always uses the full computed arrays above.
+  const visualMoveHighlights = showMoveGuides ? moveHighlights : [];
+  const visualCaptureHighlights = showMoveGuides ? captureHighlights : [];
+  const visualWallHighlights = showMoveGuides ? wallHighlights : [];
 
   const handleCellClick = (coordinate: string) => {
     if (winner) return;
+
+    // Intercept: Data Shield placing for Idea 8
+    if (ideaId === 8 && currentPlayer === 'goat' && extraState?.activePower === 'dataShield') {
+      const pieceAtCell = pieces.find(p => p.position === coordinate);
+      if (pieceAtCell?.type === 'goat') {
+        recordHistory(pieces, moveLog);
+        const nextExtra = {
+          ...extraState,
+          activePower: null,
+          shieldedGoatId: pieceAtCell.id,
+          shieldedGoatCell: coordinate
+        };
+        setExtraState(nextExtra);
+        setSelectedPiece(null);
+        const calc = `Goats placed a Temporary Data Shield on Goat ${pieceAtCell.label} at ${coordinate}! Tiger cannot capture it for 1 round.`;
+        setLastCalculation(calc);
+
+        const entry: MoveLogEntry = {
+          turnNumber: moveLog.length + 1,
+          team: 'Goats',
+          pieceMoved: 'Data Shield',
+          from: coordinate,
+          to: coordinate,
+          captureStatus: 'none',
+          mathWallStatus: 'none',
+          calculationShown: calc,
+          activeMathWallsCount: 0,
+        };
+        setMoveLog([...moveLog, entry]);
+        setGoatTurnsCount(goatTurnsCount + 1);
+        setCurrentPlayer('tiger');
+        return;
+      }
+      return;
+    }
+
+    // A. Placement Phase Handler
+    // Placement phase is active if any piece is not yet placed (position === "")
+    const hasUnplacedTigers = pieces.some(p => p.type === 'tiger' && p.position === "");
+    const hasUnplacedGoats = pieces.some(p => p.type === 'goat' && p.position === "");
+    const isPlacementPhase = hasUnplacedTigers || hasUnplacedGoats;
+
+    if (isPlacementPhase) {
+      // Find the first unplaced piece of the currentPlayer
+      const playerUnplacedPieces = pieces.filter(p => p.type === currentPlayer && p.position === "");
+      if (playerUnplacedPieces.length === 0) {
+        return; // Click ignored if it's not this player's placement phase
+      }
+
+      // Check if clicked cell is occupied or blocked
+      const isOccupied = pieces.some(p => p.position === coordinate);
+      const cell = gridCells[coordinate];
+      const isBlocked = cell?.isBlocked;
+
+      if (isOccupied || isBlocked) {
+        return; // Invalid placement target
+      }
+
+      // Record state for Undo
+      recordHistory(pieces, moveLog);
+
+      const targetPiece = playerUnplacedPieces[0];
+      const updatedPieces = pieces.map(p => 
+        p.id === targetPiece.id ? { ...p, position: coordinate } : p
+      );
+
+      const calcMsg = `Placed ${currentPlayer === 'tiger' ? 'Tiger' : 'Goat'} ${targetPiece.label} at ${coordinate}`;
+      setLastCalculation(calcMsg);
+
+      const entry: MoveLogEntry = {
+        turnNumber: moveLog.length + 1,
+        team: currentPlayer === 'goat' ? 'Goats' : 'Tigers',
+        pieceMoved: targetPiece.label,
+        from: 'Inventory',
+        to: coordinate,
+        captureStatus: 'none',
+        mathWallStatus: 'none',
+        calculationShown: calcMsg,
+        activeMathWallsCount: 0,
+      };
+
+      setPieces(updatedPieces);
+      setMoveLog([...moveLog, entry]);
+
+      // Determine next turn
+      const nextHasUnplacedTigers = updatedPieces.some(p => p.type === 'tiger' && p.position === "");
+      const nextHasUnplacedGoats = updatedPieces.some(p => p.type === 'goat' && p.position === "");
+
+      if (nextHasUnplacedTigers || nextHasUnplacedGoats) {
+        // Alternate turns if both players still have unplaced pieces
+        if (currentPlayer === 'tiger') {
+          if (nextHasUnplacedGoats) {
+            setCurrentPlayer('goat');
+          } else {
+            setCurrentPlayer('tiger');
+          }
+        } else {
+          if (nextHasUnplacedTigers) {
+            setCurrentPlayer('tiger');
+          } else {
+            setCurrentPlayer('goat');
+          }
+        }
+      } else {
+        // Start standard gameplay
+        setCurrentPlayer('goat');
+        setLastCalculation('All pieces placed! Standard gameplay begins. Goats\' turn to move.');
+      }
+      return;
+    }
 
     // Handle Engineering Placement & Actions (Idea 10)
     if (placementMode !== 'none') {
@@ -216,7 +509,7 @@ export const UniversalGameShell: React.FC<UniversalGameShellProps> = ({ config, 
           nextExtra.lastEngineeringEvent = `${currentPlayer === 'goat' ? 'Goats' : 'Tigers'} rotated tile ${coordinate} clockwise!`;
 
           // Update active safe routes
-          const routes = findConnectedPaths(nextGrid, preset.gridSize, pieces);
+          const routes = findConnectedPaths(nextGrid, preset.gridSize, pieces, version);
           nextExtra.activeSafeRoutes = routes.map(r => r.path);
 
           setGridCells(nextGrid);
@@ -294,7 +587,7 @@ export const UniversalGameShell: React.FC<UniversalGameShellProps> = ({ config, 
           }
 
           if (removed) {
-            const routes = findConnectedPaths(nextGrid, preset.gridSize, pieces);
+            const routes = findConnectedPaths(nextGrid, preset.gridSize, pieces, version);
             nextExtra.activeSafeRoutes = routes.map(r => r.path);
 
             setGridCells(nextGrid);
@@ -370,7 +663,7 @@ export const UniversalGameShell: React.FC<UniversalGameShellProps> = ({ config, 
         }
 
         // Update active safe routes
-        const routes = findConnectedPaths(nextGrid, preset.gridSize, pieces);
+        const routes = findConnectedPaths(nextGrid, preset.gridSize, pieces, version);
         nextExtra.activeSafeRoutes = routes.map(r => r.path);
 
         setGridCells(nextGrid);
@@ -602,6 +895,61 @@ export const UniversalGameShell: React.FC<UniversalGameShellProps> = ({ config, 
     setCurrentPlayer(isGoatTurn ? 'tiger' : 'goat');
   };
 
+  // Idea 4: Create Energy Shield Action (Goat only)
+  const handleCreateShieldAction = () => {
+    if (ideaId !== 4 || !selectedPiece || selectedPiece.type !== 'goat') return;
+    const energy = selectedPiece.energy ?? 0;
+    if (energy < 1 || selectedPiece.hasShield) return;
+
+    recordHistory(pieces, moveLog);
+
+    const updatedPieces = pieces.map(p => {
+      if (p.id === selectedPiece.id) {
+        return {
+          ...p,
+          energy: energy - 1,
+          hasShield: true,
+        };
+      }
+      return p;
+    });
+
+    const calcMsg = `Goat ${selectedPiece.label} activated an Energy Shield (-1⚡)! Current Energy: ${energy - 1}.`;
+    setLastCalculation(calcMsg);
+
+    const entry: MoveLogEntry = {
+      turnNumber: moveLog.length + 1,
+      team: 'Goats',
+      pieceMoved: selectedPiece.label,
+      from: selectedPiece.position,
+      to: selectedPiece.position,
+      captureStatus: 'none',
+      mathWallStatus: 'none',
+      calculationShown: calcMsg,
+      activeMathWallsCount: 0,
+    };
+
+    setPieces(updatedPieces);
+    setMoveLog([...moveLog, entry]);
+    setSelectedPiece(null);
+
+    const nextGoatTurns = goatTurnsCount + 1;
+    setGoatTurnsCount(nextGoatTurns);
+
+    const winCheck = logicEngine.checkWinCondition(
+      updatedPieces,
+      gridCells,
+      capturedGoatsCount,
+      nextGoatTurns,
+      version,
+      extraState,
+      0
+    );
+    if (winCheck) setWinner(winCheck);
+
+    setCurrentPlayer('tiger');
+  };
+
   const handleResolveDiceBattle = (finalRoll: number) => {
     if (!diceBattleState || !diceBattleState.attacker || !diceBattleState.targetCoord) return;
 
@@ -798,6 +1146,16 @@ export const UniversalGameShell: React.FC<UniversalGameShellProps> = ({ config, 
 
         <div className="flex items-center flex-wrap gap-2 text-xs font-semibold">
           <button
+            onClick={() => setShowMoveGuides(p => !p)}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border-2 transition-all cursor-pointer ${
+              showMoveGuides
+                ? 'bg-sky-600 text-white border-sky-600 shadow-sm'
+                : 'bg-white text-sky-700 border-sky-200 hover:border-sky-300'
+            }`}
+          >
+            <span>🧭 Move Guides: {showMoveGuides ? 'ON' : 'OFF'}</span>
+          </button>
+          <button
             onClick={() => setClassroomMode(p => !p)}
             className={`px-3 py-1.5 rounded-xl border-2 transition-all cursor-pointer ${
               classroomMode
@@ -852,10 +1210,19 @@ export const UniversalGameShell: React.FC<UniversalGameShellProps> = ({ config, 
               />
               <div>
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
-                  Active Turn
+                  {(() => {
+                    const hasUnplacedTigers = pieces.some(p => p.type === 'tiger' && p.position === "");
+                    const hasUnplacedGoats = pieces.some(p => p.type === 'goat' && p.position === "");
+                    return (hasUnplacedTigers || hasUnplacedGoats) ? 'Placement Phase' : 'Active Turn';
+                  })()}
                 </p>
-                <p className={`font-black text-lg leading-none ${isGoatTurn ? 'text-emerald-600' : 'text-rose-600'}`}>
-                  {isGoatTurn ? `🐐 ${goatTeamName}` : `🐯 ${tigerTeamName}`}
+                <p className={`font-black text-lg leading-none ${isGoatTurn ? 'text-emerald-600' : 'text-rose-600'} flex items-center gap-2`}>
+                  <span>{isGoatTurn ? `🐐 ${goatTeamName}` : `🐯 ${tigerTeamName}`}</span>
+                  {currentHasNoLegalMoves && (
+                    <span className="text-[10px] font-black text-amber-600 bg-amber-100 px-2 py-0.5 rounded border border-amber-200 animate-pulse">
+                      ⚠️ No legal moves! Skip turn required.
+                    </span>
+                  )}
                 </p>
               </div>
             </div>
@@ -870,6 +1237,18 @@ export const UniversalGameShell: React.FC<UniversalGameShellProps> = ({ config, 
                 >
                   <Zap className="w-4 h-4 animate-bounce" />
                   <span>Rest Piece (+2⚡)</span>
+                </button>
+              )}
+
+              {/* Idea 4: Create Energy Shield Action (Goats only) */}
+              {ideaId === 4 && selectedPiece && selectedPiece.type === 'goat' && (
+                <button
+                  onClick={handleCreateShieldAction}
+                  disabled={(selectedPiece.energy ?? 0) < 1 || selectedPiece.hasShield}
+                  className="flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border-2 border-emerald-200 px-3.5 py-1.5 rounded-xl text-xs font-bold hover:bg-emerald-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all shadow-sm"
+                >
+                  <Shield className="w-4 h-4 text-emerald-600 animate-pulse" />
+                  <span>Activate Shield (-1⚡)</span>
                 </button>
               )}
 
@@ -957,6 +1336,16 @@ export const UniversalGameShell: React.FC<UniversalGameShellProps> = ({ config, 
                 </div>
               )}
 
+              {/* Skip Turn button for Idea 9 when no legal moves exist */}
+              {ideaId === 9 && currentHasNoLegalMoves && !winner && (
+                <button
+                  onClick={handleSkipTurn}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border-2 border-amber-400 bg-amber-50 text-amber-700 font-extrabold text-xs hover:bg-amber-100 cursor-pointer transition-all shadow-sm animate-pulse"
+                >
+                  ⏭️ Skip Turn
+                </button>
+              )}
+
               {/* Undo & Reset buttons */}
               <button
                 onClick={handleUndo}
@@ -973,8 +1362,60 @@ export const UniversalGameShell: React.FC<UniversalGameShellProps> = ({ config, 
               >
                 Reset
               </button>
+              {showReshuffleButton && !winner && (
+                <button
+                  onClick={handleReshuffle}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border-2 border-indigo-100 bg-white text-indigo-600 font-bold text-xs hover:border-indigo-300 cursor-pointer transition-all shadow-xs"
+                  title="Randomly distribute current pieces to new coordinates"
+                >
+                  🎲 Re-shuffle
+                </button>
+              )}
             </div>
           </div>
+
+          {/* Placement Phase Instruction Banner */}
+          {!winner && (() => {
+            const hasUnplacedTigers = pieces.some(p => p.type === 'tiger' && p.position === "");
+            const hasUnplacedGoats = pieces.some(p => p.type === 'goat' && p.position === "");
+            const isInPlacementPhase = hasUnplacedTigers || hasUnplacedGoats;
+            const remainingTigers = pieces.filter(p => p.type === 'tiger' && p.position === "").length;
+            const remainingGoats = pieces.filter(p => p.type === 'goat' && p.position === "").length;
+
+            if (!isInPlacementPhase) return null;
+
+            return (
+              <div className={`flex items-center gap-3 rounded-2xl px-5 py-3.5 border-2 shadow-sm animate-fade-in ${
+                !isGoatTurn
+                  ? 'bg-rose-50 border-rose-200'
+                  : 'bg-emerald-50 border-emerald-200'
+              }`}>
+                <span className="text-2xl animate-bounce">{!isGoatTurn ? '🐯' : '🐐'}</span>
+                <div className="flex-1">
+                  <p className={`text-sm font-black leading-tight ${!isGoatTurn ? 'text-rose-700' : 'text-emerald-700'}`}>
+                    {!isGoatTurn ? `${tigerTeamName}: Place your Tiger` : `${goatTeamName}: Place your Goat`}
+                    <span className="ml-2 text-xs font-bold opacity-70">
+                      ({!isGoatTurn ? remainingTigers : remainingGoats} remaining)
+                    </span>
+                  </p>
+                  <p className="text-xs text-slate-500 font-medium mt-0.5">
+                    👆 Click any empty cell on the board to place your next piece
+                    {' · Alternate placing pieces one at a time'}
+                  </p>
+                </div>
+                {hasUnplacedTigers && (
+                  <span className="text-[10px] font-black text-rose-600 bg-rose-100 px-2 py-1 rounded-full border border-rose-200 whitespace-nowrap">
+                    🐯 {remainingTigers} left
+                  </span>
+                )}
+                {!hasUnplacedTigers && hasUnplacedGoats && (
+                  <span className="text-[10px] font-black text-emerald-600 bg-emerald-100 px-2 py-1 rounded-full border border-emerald-200 whitespace-nowrap">
+                    🐐 {remainingGoats} left
+                  </span>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Winner and Termination Screen */}
           {winner && (
@@ -1225,10 +1666,10 @@ export const UniversalGameShell: React.FC<UniversalGameShellProps> = ({ config, 
                               🏛️ Center
                             </button>
                             <button
-                              onClick={() => handleMakePrediction('tiger_retreat', 'Tiger will move away/retreat')}
+                              onClick={() => handleMakePrediction('tiger_focused_hunt', 'Tiger will activate Focused Hunt')}
                               className="px-2 py-1 rounded bg-slate-50 hover:bg-slate-100 border border-slate-200 text-[9px] font-bold text-slate-700 cursor-pointer"
                             >
-                              🏃 Retreat
+                              🏹 Focused Hunt
                             </button>
                           </>
                         ) : (
@@ -1252,10 +1693,10 @@ export const UniversalGameShell: React.FC<UniversalGameShellProps> = ({ config, 
                               🟩 Edge Zone
                             </button>
                             <button
-                              onClick={() => handleMakePrediction('goat_block', 'Goat will form block adjacent to Tiger')}
+                              onClick={() => handleMakePrediction('goat_safe_step', 'Goat will use Safe Step')}
                               className="px-2 py-1 rounded bg-slate-50 hover:bg-slate-100 border border-slate-200 text-[9px] font-bold text-slate-700 cursor-pointer"
                             >
-                              🧱 Block Tiger
+                              ⚡ Safe Step
                             </button>
                           </>
                         )}
@@ -1277,10 +1718,6 @@ export const UniversalGameShell: React.FC<UniversalGameShellProps> = ({ config, 
                         <span className="font-extrabold text-emerald-700">{extraState.escapeTokens ?? 0}</span>
                       </div>
                       <div className="flex justify-between text-slate-700">
-                        <span>🧱 Blocks:</span>
-                        <span className="font-extrabold text-emerald-700">{extraState.blockTokens ?? 0}</span>
-                      </div>
-                      <div className="flex justify-between text-slate-700">
                         <span>🔮 Predictions:</span>
                         <span className="font-extrabold text-emerald-700">{extraState.predictionTokensGoat ?? 0}</span>
                       </div>
@@ -1291,10 +1728,6 @@ export const UniversalGameShell: React.FC<UniversalGameShellProps> = ({ config, 
                       <div className="flex justify-between text-slate-700">
                         <span>🍗 Attacks:</span>
                         <span className="font-extrabold text-rose-700">{extraState.attackTokens ?? 0}</span>
-                      </div>
-                      <div className="flex justify-between text-slate-700">
-                        <span>🏛️ Center Moves:</span>
-                        <span className="font-extrabold text-rose-700">{extraState.tigerCenterMoveTokens ?? 0}</span>
                       </div>
                       <div className="flex justify-between text-slate-700">
                         <span>🔮 Predictions:</span>
@@ -1341,26 +1774,26 @@ export const UniversalGameShell: React.FC<UniversalGameShellProps> = ({ config, 
                         </button>
 
                         <button
-                          disabled={!!extraState.activePower || (extraState.blockTokens ?? 0) < 3}
+                          disabled={!!extraState.activePower || (extraState.escapeTokens ?? 0) < 3}
                           onClick={() => {
                             recordHistory(pieces, moveLog);
                             setExtraState({
                               ...extraState,
-                              blockTokens: extraState.blockTokens - 3,
-                              activePower: 'strongBlock'
+                              escapeTokens: (extraState.escapeTokens ?? 0) - 3,
+                              activePower: 'dataShield'
                             });
-                            setLastCalculation('Goats activated Strong Block! Select adjacent empty cell to block.');
+                            setLastCalculation('Goats activated Temporary Data Shield! Click one of your Goats on the board to shield it.');
                           }}
                           className={`p-1 rounded-lg border text-[9px] font-bold text-center flex flex-col items-center justify-center transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${
-                            extraState.activePower === 'strongBlock'
+                            extraState.activePower === 'dataShield'
                               ? 'bg-emerald-600 border-emerald-600 text-white font-extrabold shadow'
                               : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
                           }`}
-                          title="Cost: 3 Block Tokens. Place a block that lasts 1 round."
+                          title="Cost: 3 Escape Tokens. Protect a selected goat from being captured for 1 tiger turn."
                         >
-                          <span className="text-xs">🧱</span>
-                          <span className="font-black leading-none mt-0.5">Strong Block</span>
-                          <span className="text-[7px] text-slate-400 mt-0.5">3 Block</span>
+                          <span className="text-xs">🛡️</span>
+                          <span className="font-black leading-none mt-0.5">Data Shield</span>
+                          <span className="text-[7px] text-slate-400 mt-0.5">3 Escape</span>
                         </button>
 
                         <button
@@ -1372,14 +1805,14 @@ export const UniversalGameShell: React.FC<UniversalGameShellProps> = ({ config, 
                               predictionTokensGoat: extraState.predictionTokensGoat - 2,
                               activePower: 'smartMove'
                             });
-                            setLastCalculation('Goats activated Smart Move! Gain capture immunity.');
+                            setLastCalculation('Goats activated Smart Move! Danger zones highlighted on the board.');
                           }}
                           className={`p-1 rounded-lg border text-[9px] font-bold text-center flex flex-col items-center justify-center transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${
                             extraState.activePower === 'smartMove'
                               ? 'bg-emerald-600 border-emerald-600 text-white font-extrabold shadow'
                               : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
                           }`}
-                          title="Cost: 2 Prediction Tokens. Gain capture immunity."
+                          title="Cost: 2 Prediction Tokens. Highlights danger zones."
                         >
                           <span className="text-xs">👁️</span>
                           <span className="font-black leading-none mt-0.5">Smart Move</span>
@@ -1387,7 +1820,7 @@ export const UniversalGameShell: React.FC<UniversalGameShellProps> = ({ config, 
                         </button>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-3 gap-1">
+                      <div className="grid grid-cols-2 gap-1">
                         <button
                           disabled={!!extraState.activePower || (extraState.attackTokens ?? 0) < 3}
                           onClick={() => {
@@ -1412,48 +1845,25 @@ export const UniversalGameShell: React.FC<UniversalGameShellProps> = ({ config, 
                         </button>
 
                         <button
-                          disabled={!!extraState.activePower || (extraState.tigerCenterMoveTokens ?? 0) < 3}
-                          onClick={() => {
-                            recordHistory(pieces, moveLog);
-                            setExtraState({
-                              ...extraState,
-                              tigerCenterMoveTokens: extraState.tigerCenterMoveTokens - 3,
-                              activePower: 'centerControl'
-                            });
-                            setLastCalculation('Tigers activated Center Control! Center is blocked for goats.');
-                          }}
-                          className={`p-1 rounded-lg border text-[9px] font-bold text-center flex flex-col items-center justify-center transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${
-                            extraState.activePower === 'centerControl'
-                              ? 'bg-rose-600 border-rose-600 text-white font-extrabold shadow'
-                              : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
-                          }`}
-                          title="Cost: 3 Center Tokens. Blocks Center node for goats."
-                        >
-                          <span className="text-xs">🏛️</span>
-                          <span className="font-black leading-none mt-0.5">Center Control</span>
-                          <span className="text-[7px] text-slate-400 mt-0.5">3 Center</span>
-                        </button>
-
-                        <button
                           disabled={!!extraState.activePower || (extraState.predictionTokensTiger ?? 0) < 2}
                           onClick={() => {
                             recordHistory(pieces, moveLog);
                             setExtraState({
                               ...extraState,
                               predictionTokensTiger: extraState.predictionTokensTiger - 2,
-                              activePower: 'ambush'
+                              activePower: 'smartMove'
                             });
-                            setLastCalculation('Tigers activated Ambush! Tiger can make a range-2 movement.');
+                            setLastCalculation('Tigers activated Smart Move! Goat escape routes highlighted.');
                           }}
                           className={`p-1 rounded-lg border text-[9px] font-bold text-center flex flex-col items-center justify-center transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${
-                            extraState.activePower === 'ambush'
+                            extraState.activePower === 'smartMove'
                               ? 'bg-rose-600 border-rose-600 text-white font-extrabold shadow'
                               : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
                           }`}
-                          title="Cost: 2 Prediction Tokens. Allows double-step movement."
+                          title="Cost: 2 Prediction Tokens. Highlights escape routes."
                         >
-                          <span className="text-xs">⚡</span>
-                          <span className="font-black leading-none mt-0.5">Ambush</span>
+                          <span className="text-xs">👁️</span>
+                          <span className="font-black leading-none mt-0.5">Smart Move</span>
                           <span className="text-[7px] text-slate-400 mt-0.5">2 Predict</span>
                         </button>
                       </div>
@@ -1472,8 +1882,14 @@ export const UniversalGameShell: React.FC<UniversalGameShellProps> = ({ config, 
                 </h3>
 
                 {(() => {
-                  const card = RULE_DECK[extraState.activeRuleIndex ?? 0];
-                  const nextCard = RULE_DECK[(extraState.activeRuleIndex + 1) % RULE_DECK.length];
+                  const activeRulesDeck = version === 'beginner' 
+                    ? RULE_DECK.slice(0, 4) 
+                    : version === 'standard' 
+                    ? RULE_DECK.slice(4, 8) 
+                    : RULE_DECK.slice(8, 12);
+                  const activeIdx = extraState.activeRuleIndex ?? 0;
+                  const card = activeRulesDeck[activeIdx % activeRulesDeck.length] || activeRulesDeck[0];
+                  const nextCard = activeRulesDeck[(activeIdx + 1) % activeRulesDeck.length] || activeRulesDeck[0];
                   return (
                     <div className="space-y-3.5">
                       {/* Active Card */}
@@ -1518,9 +1934,9 @@ export const UniversalGameShell: React.FC<UniversalGameShellProps> = ({ config, 
             }
             protectedGoatPositions={activeProtectedGoats}
             selectedPiece={selectedPiece}
-            moveHighlights={moveHighlights}
-            captureHighlights={captureHighlights}
-            wallHighlights={wallHighlights}
+            moveHighlights={visualMoveHighlights}
+            captureHighlights={visualCaptureHighlights}
+            wallHighlights={visualWallHighlights}
             onCellClick={handleCellClick}
             classroomMode={classroomMode}
             gridCells={gridCells}
@@ -1872,6 +2288,51 @@ export const UniversalGameShell: React.FC<UniversalGameShellProps> = ({ config, 
           </div>
         </div>
       )}
+
+      {/* Premium Tutorial Cards at the bottom */}
+      <div className="border-t border-slate-200 pt-8 mt-12 space-y-4">
+        <div className="text-center space-y-1">
+          <h2 className="text-xl font-black text-slate-800 tracking-tight flex items-center justify-center gap-1.5">
+            <Sparkles className="w-5 h-5 text-emerald-600 animate-pulse" />
+            <span>Quick Start & Strategy Tutorial</span>
+          </h2>
+          <p className="text-xs text-slate-400 font-medium">Learn the core concepts and strategy tips for this STEM edition</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-2.5 shadow-2xs hover:shadow-xs transition-shadow duration-200">
+            <div className="text-emerald-600 text-lg font-black flex items-center gap-1.5">
+              <span>📋</span>
+              <span className="text-sm font-black text-slate-800 uppercase tracking-wider">How to Play</span>
+            </div>
+            <ul className="text-xs text-slate-500 space-y-1.5 list-disc pl-4 leading-relaxed font-medium">
+              <li><strong>Placement Phase:</strong> Alternate placing pieces one at a time, starting with Tigers. Board starts completely empty!</li>
+              <li><strong>Standard Play:</strong> Click on your active piece to select it, then click highlighted cells to move.</li>
+              <li><strong>Win Targets:</strong> Goats: survive {preset.goatSurvivalTurns} turns. Tigers: capture {preset.tigerCapturesRequired} goats.</li>
+            </ul>
+          </div>
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-2.5 shadow-2xs hover:shadow-xs transition-shadow duration-200">
+            <div className="text-indigo-600 text-lg font-black flex items-center gap-1.5">
+              <span>🎓</span>
+              <span className="text-sm font-black text-slate-800 uppercase tracking-wider">STEM Learning Focus</span>
+            </div>
+            <div className="space-y-2 text-xs">
+              <p className="text-slate-600 font-bold leading-relaxed">{idea.stemFocus}</p>
+              <p className="text-slate-400 font-medium leading-relaxed">Every move, capture, or defense follows strict rules designed to build computational, mathematical, and spatial reasoning skills.</p>
+            </div>
+          </div>
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-2.5 shadow-2xs hover:shadow-xs transition-shadow duration-200">
+            <div className="text-amber-600 text-lg font-black flex items-center gap-1.5">
+              <span>💡</span>
+              <span className="text-sm font-black text-slate-800 uppercase tracking-wider">Strategy Tips</span>
+            </div>
+            <ul className="text-xs text-slate-500 space-y-1.5 list-disc pl-4 leading-relaxed font-medium">
+              <li><strong>Goats:</strong> Safety lies in numbers! Stay adjacent to build protective shapes, number trails, or safe herds.</li>
+              <li><strong>Tigers:</strong> Watch your targets carefully. Wait for goats to isolate themselves or fail to satisfy target arithmetic rules.</li>
+              <li><strong>Guides:</strong> Toggle <strong>Move Guides</strong> ON in the toolbar if you need help finding valid moves!</li>
+            </ul>
+          </div>
+        </div>
+      </div>
 
     </div>
   );

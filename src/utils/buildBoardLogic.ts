@@ -14,11 +14,9 @@ export function getDirectionsForTileType(tileType: string, rotation: number = 0)
       baseDirs = ['N', 'S', 'E', 'W'];
       break;
     case 'straight':
-      // 0 or 2: horizontal (E, W), 1 or 3: vertical (N, S)
       baseDirs = (rotation % 2 === 0) ? ['E', 'W'] : ['N', 'S'];
       break;
     case 'corner':
-      // 0: NE, 1: ES, 2: SW, 3: WN (clockwise rotation)
       const rot = rotation % 4;
       if (rot === 0) baseDirs = ['N', 'E'];
       else if (rot === 1) baseDirs = ['E', 'S'];
@@ -26,7 +24,6 @@ export function getDirectionsForTileType(tileType: string, rotation: number = 0)
       else baseDirs = ['W', 'N'];
       break;
     case 'one-way':
-      // 0: E, 1: S, 2: W, 3: N (clockwise rotation)
       const oneRot = rotation % 4;
       if (oneRot === 0) baseDirs = ['E'];
       else if (oneRot === 1) baseDirs = ['S'];
@@ -51,7 +48,6 @@ export function arePathsConnected(from: string, to: string, gridCells: Record<st
   const fromCR = coordToColRow(from);
   const toCR = coordToColRow(to);
 
-  // Check if they are cardinally adjacent (no diagonals in path tiles!)
   const dc = toCR.col - fromCR.col;
   const dr = toCR.row - fromCR.row;
 
@@ -59,19 +55,15 @@ export function arePathsConnected(from: string, to: string, gridCells: Record<st
   const toDirs = getDirectionsForTileType(toCell.tileType || 'straight', toCell.rotation || 0);
 
   if (dr === -1 && dc === 0) {
-    // to is North of from
     return fromDirs.includes('N') && toDirs.includes('S');
   }
   if (dr === 1 && dc === 0) {
-    // to is South of from
     return fromDirs.includes('S') && toDirs.includes('N');
   }
   if (dr === 0 && dc === 1) {
-    // to is East of from
     return fromDirs.includes('E') && toDirs.includes('W');
   }
   if (dr === 0 && dc === -1) {
-    // to is West of from
     return fromDirs.includes('W') && toDirs.includes('E');
   }
 
@@ -87,7 +79,6 @@ export function isGoatTrappedInDeadEnd(goatCoord: string, pieces: Piece[], gridC
   const connectedNeighbors = neighbors.filter(n => arePathsConnected(goatCoord, n, gridCells, gridSize));
 
   if (connectedNeighbors.length === 1) {
-    // Check if tiger is adjacent (connected or adjacent cardinally/diagonally)
     const tigerAdjacent = pieces.some(p => p.type === 'tiger' && areAdjacent(goatCoord, p.position));
     return tigerAdjacent;
   }
@@ -95,19 +86,20 @@ export function isGoatTrappedInDeadEnd(goatCoord: string, pieces: Piece[], gridC
 }
 
 // BFS check to verify if Goats have constructed a Safe Route (connected path from left to right, or top to bottom)
-// with at least 2 goats and no tiger on the path
+// with minimum goats standing on it, and no tiger on the path
 export function findConnectedPaths(
   gridCells: Record<string, CellConfig>,
   gridSize: number,
-  pieces: Piece[]
+  pieces: Piece[],
+  version: GameVersion
 ): { path: string[]; type: 'left-right' | 'top-bottom' }[] {
   const colLetters = Array.from({ length: gridSize }, (_, i) => String.fromCharCode(65 + i));
-  const tigerCoords = new Set(pieces.filter(p => p.type === 'tiger').map(p => p.position));
-  const goatCoords = pieces.filter(p => p.type === 'goat').map(p => p.position);
+  const tigerCoords = new Set(pieces.filter(p => p.type === 'tiger' && p.position !== "").map(p => p.position));
+  const goatCoords = pieces.filter(p => p.type === 'goat' && p.position !== "").map(p => p.position);
 
   const foundRoutes: { path: string[]; type: 'left-right' | 'top-bottom' }[] = [];
+  const minGoats = (version === 'beginner') ? 2 : 3;
 
-  // Helper to run BFS search
   const runBFS = (starts: string[], targetCheck: (coord: string) => boolean, type: 'left-right' | 'top-bottom') => {
     starts.forEach(start => {
       const startCell = gridCells[start];
@@ -120,11 +112,10 @@ export function findConnectedPaths(
         const { coord, path } = queue.shift()!;
 
         if (targetCheck(coord)) {
-          // Check if at least 2 goats are on this path, and no tiger stands on it
           const pathGoatsCount = path.filter(c => goatCoords.includes(c)).length;
           const pathHasTiger = path.some(c => tigerCoords.has(c));
 
-          if (pathGoatsCount >= 2 && !pathHasTiger) {
+          if (pathGoatsCount >= minGoats && !pathHasTiger) {
             foundRoutes.push({ path, type });
           }
         }
@@ -163,7 +154,6 @@ export const buildBoardLogic: GameLogicEngine = {
     const gridCells: Record<string, CellConfig> = {};
     const colLetters = Array.from({ length: preset.gridSize }, (_, i) => String.fromCharCode(65 + i));
 
-    // Pre-place a rich variety of paths based on board dimensions
     for (let r = 1; r <= preset.gridSize; r++) {
       for (let c = 0; c < preset.gridSize; c++) {
         const coord = `${colLetters[c]}${r}`;
@@ -172,10 +162,8 @@ export const buildBoardLogic: GameLogicEngine = {
         let isBlocked = false;
 
         if (version === 'beginner') {
-          // Beginner has simple open grid: all crossroads to simulate normal cardinal connections
           tileType = 'crossroad';
         } else {
-          // Standard and Advanced have structured path networks!
           const isCenterCol = c === Math.floor(preset.gridSize / 2);
           const isCenterRow = r === Math.ceil(preset.gridSize / 2);
 
@@ -183,23 +171,22 @@ export const buildBoardLogic: GameLogicEngine = {
             tileType = 'crossroad';
           } else if (isCenterCol || isCenterRow) {
             tileType = 'straight';
-            rotation = isCenterCol ? 1 : 0; // vertical vs horizontal
+            rotation = isCenterCol ? 1 : 0;
           } else if ((c === 0 && r === 1) || (c === preset.gridSize - 1 && r === preset.gridSize)) {
             tileType = 'corner';
             rotation = (c === 0) ? 1 : 3;
           } else if (c % 2 === 1 && r % 2 === 1) {
-            tileType = 'safe'; // preplaced safe tiles for goats!
+            tileType = 'safe';
           } else if (version === 'advanced' && c === 1 && r === preset.gridSize - 1) {
-            tileType = 'tiger-den'; // preplaced tiger den for advanced!
+            tileType = 'tiger-den';
           } else if (version === 'advanced' && c === preset.gridSize - 2 && r === 2) {
-            tileType = 'one-way'; // preplaced one-way path pointing East!
+            tileType = 'one-way';
             rotation = 0;
           } else {
             tileType = 'corner';
             rotation = (c + r) % 4;
           }
 
-          // Preplaced block barriers
           if (version === 'advanced' && (coord === 'B3' || coord === 'E5')) {
             tileType = 'block';
             isBlocked = true;
@@ -220,13 +207,14 @@ export const buildBoardLogic: GameLogicEngine = {
       pieces: JSON.parse(JSON.stringify(preset.startingPieces)),
       gridCells,
       extraState: {
-        goatBridgesLeft: version === 'beginner' ? 2 : version === 'standard' ? 3 : 4,
-        tigerBlocksLeft: version === 'beginner' ? 2 : version === 'standard' ? 3 : 4,
+        goatBridgesLeft: version === 'beginner' ? 1 : version === 'standard' ? 2 : 3,
+        tigerBlocksLeft: version === 'beginner' ? 1 : version === 'standard' ? 2 : 3,
         placedBridges: [] as string[],
         placedBlocks: version === 'advanced' ? ['B3', 'E5'] : [] as string[],
         lastEngineeringEvent: 'Engineering phase initialized. Goats construct bridges, tigers place blocks.',
         activeSafeRoutes: [] as string[][],
-        blockedTurnsCount: 0, // tracks consecutive blocked Goat turns
+        blockedTurnsCount: 0,
+        goatSurvivalTurnsTracker: 0,
       },
     };
   },
@@ -245,7 +233,6 @@ export const buildBoardLogic: GameLogicEngine = {
     const moveHighlights: string[] = [];
     const captureHighlights: string[] = [];
 
-    // Filter adjacent cells by path connections (Beginner is simple grid, Standard/Advanced checks connections)
     adj.forEach(c => {
       const cell = gridCells[c];
       if (cell?.isBlocked || cell?.tileType === 'block') return;
@@ -257,7 +244,6 @@ export const buildBoardLogic: GameLogicEngine = {
         if (!p) {
           moveHighlights.push(c);
         } else if (p.type === 'goat' && selectedPiece.type === 'tiger') {
-          // Goats on Safe tiles or Safe Routes are protected from normal capture
           const isSafeTile = cell?.tileType === 'safe';
           const isSafeRoute = extraState?.activeSafeRoutes?.some((route: string[]) => route.includes(c));
 
@@ -268,7 +254,6 @@ export const buildBoardLogic: GameLogicEngine = {
       }
     });
 
-    // Advanced Tiger Den ranges: Tiger can capture from 1 extra connected step away
     const currentCell = gridCells[selectedPiece.position];
     if (version === 'advanced' && selectedPiece.type === 'tiger' && currentCell?.tileType === 'tiger-den') {
       const connectedNeighbors = adj.filter(n => arePathsConnected(selectedPiece.position, n, gridCells, preset.gridSize));
@@ -276,7 +261,6 @@ export const buildBoardLogic: GameLogicEngine = {
       connectedNeighbors.forEach(mid => {
         const occupier = pieces.find(p => p.position === mid);
         if (!occupier) {
-          // Path continues to distance 2
           const dist2Neighbors = getNeighbors(mid, preset.gridSize);
           dist2Neighbors.forEach(dest => {
             if (dest === selectedPiece.position) return;
@@ -321,18 +305,46 @@ export const buildBoardLogic: GameLogicEngine = {
       updatedPieces = updatedPieces.filter(p => p.id !== goat.id).map(p => p.id === selectedPiece.id ? { ...p, position: toCoord } : p);
       captureStatus = 'success';
       calcMsg = `Tiger captured Goat at ${toCoord}!`;
+
+      // Tiger earns 1 block token on capture
+      nextExtra.tigerBlocksLeft = (nextExtra.tigerBlocksLeft || 0) + 1;
+      calcMsg += ` Tigers earned 1 Block token!`;
     } else {
       updatedPieces = updatedPieces.map(p => p.id === selectedPiece.id ? { ...p, position: toCoord } : p);
       calcMsg = `${selectedPiece.label} moved to ${toCoord}.`;
 
-      // Check if this move triggers a dead-end trapping warning
       if (selectedPiece.type === 'goat' && isGoatTrappedInDeadEnd(toCoord, updatedPieces, gridCells, preset.gridSize)) {
         calcMsg += ` Warning: Goat is trapped in a dead end!`;
       }
     }
 
-    // Update active safe routes after any piece movement
-    const routes = findConnectedPaths(gridCells, preset.gridSize, updatedPieces);
+    // Goats earn 1 bridge token every 3 turns or when reaching a safe tile
+    if (currentPlayer === 'goat') {
+      nextExtra.goatSurvivalTurnsTracker = (nextExtra.goatSurvivalTurnsTracker || 0) + 1;
+      if (nextExtra.goatSurvivalTurnsTracker % 3 === 0) {
+        nextExtra.goatBridgesLeft = (nextExtra.goatBridgesLeft || 0) + 1;
+        calcMsg += ` Goats earned 1 Bridge token for surviving 3 turns!`;
+      }
+
+      const destCell = gridCells[toCoord];
+      if (destCell?.tileType === 'safe') {
+        nextExtra.goatBridgesLeft = (nextExtra.goatBridgesLeft || 0) + 1;
+        calcMsg += ` Goats reached a Safe Tile and earned 1 Bridge token!`;
+      }
+    }
+
+    // Tigers earn 1 block token for controlling a Crossroad cell at the end of their turn
+    if (currentPlayer === 'tiger') {
+      const tigers = updatedPieces.filter(p => p.type === 'tiger' && p.position !== "");
+      const controlsCrossroad = tigers.some(t => gridCells[t.position]?.tileType === 'crossroad');
+      if (controlsCrossroad) {
+        nextExtra.tigerBlocksLeft = (nextExtra.tigerBlocksLeft || 0) + 1;
+        calcMsg += ` Tigers controlled a Crossroad and earned 1 Block token!`;
+      }
+    }
+
+    // Update active safe routes after any movement
+    const routes = findConnectedPaths(gridCells, preset.gridSize, updatedPieces, version);
     nextExtra.activeSafeRoutes = routes.map(r => r.path);
 
     if (routes.length > (extraState.activeSafeRoutes?.length || 0)) {
@@ -358,13 +370,11 @@ export const buildBoardLogic: GameLogicEngine = {
     const protectedCoords = new Set<string>();
 
     pieces.forEach(p => {
-      if (p.type === 'goat') {
+      if (p.type === 'goat' && p.position !== "") {
         const cell = gridCells[p.position];
-        // 1. Safe Tiles protect goats standing on them
         if (cell?.tileType === 'safe') {
           protectedCoords.add(p.position);
         }
-        // 2. Safe Routes protect goats standing on them
         const onSafeRoute = extraState?.activeSafeRoutes?.some((route: string[]) => route.includes(p.position));
         if (onSafeRoute) {
           protectedCoords.add(p.position);
@@ -386,20 +396,15 @@ export const buildBoardLogic: GameLogicEngine = {
   ): 'goat' | 'tiger' | 'both-lose' | null => {
     const preset = VERSION_PRESETS[version];
 
-    // Win check for captured goats
     if (capturedGoatsCount >= preset.tigerCapturesRequired) return 'tiger';
 
-    // Win check for safe route counts (1 in Beginner, 2 in Standard, or survival in Advanced)
     const routesCount = extraState?.activeSafeRoutes?.length || 0;
-    let targetRoutes = 1;
-    if (version === 'standard') targetRoutes = 2;
-    else if (version === 'advanced') targetRoutes = 3;
+    let targetRoutes = (version === 'beginner') ? 1 : 2;
 
     if (routesCount >= targetRoutes || goatTurnsCount >= preset.goatSurvivalTurns) return 'goat';
 
-    // Win check for blocked route lockdown:
-    // If Goat Team has no legal goat movement and no bridge actions left for 2 consecutive turns
-    const goats = pieces.filter(p => p.type === 'goat');
+    // Route lockdown win condition
+    const goats = pieces.filter(p => p.type === 'goat' && p.position !== "");
     let hasGoatMoves = false;
     goats.forEach(g => {
       const adj = getNeighbors(g.position, preset.gridSize);
@@ -416,8 +421,8 @@ export const buildBoardLogic: GameLogicEngine = {
     if (!hasGoatMoves && !hasBridgesLeft) {
       const blockedTurns = (extraState?.blockedTurnsCount || 0) + 1;
       if (extraState) extraState.blockedTurnsCount = blockedTurns;
-      if (blockedTurns >= 4) { // 2 full rounds = 4 turns
-        return 'tiger'; // Route lockdown victory for Tigers!
+      if (blockedTurns >= 4) {
+        return 'tiger';
       }
     } else {
       if (extraState) extraState.blockedTurnsCount = 0;
@@ -438,26 +443,24 @@ export const buildBoardLogic: GameLogicEngine = {
 
   getHowToPlayGuide: (version: GameVersion) => {
     const preset = VERSION_PRESETS[version];
-    const bridges = version === 'beginner' ? 2 : version === 'standard' ? 3 : 4;
+    const bridges = version === 'beginner' ? 1 : version === 'standard' ? 2 : 3;
     const blocks = bridges;
-    let targetRoutes = 1;
-    if (version === 'standard') targetRoutes = 2;
-    else if (version === 'advanced') targetRoutes = 3;
+    const targetRoutes = (version === 'beginner') ? 1 : 2;
 
     return {
-      title: 'Bagh-Bakri Build-a-Board',
+      title: 'Bagh-Bakri Build-a-Board with STEM Learning',
       studentGuide: [
         'Goal for Goat Team: Build connected safe pathways connecting opposite sides of the board to escape!',
         'Goal for Tiger Team: Place block blocks to trap Goats in dead-ends or lockdown all routes.',
-        'Path Connectivity: Pieces can only move horizontally or vertically if the path lines connect A1 to A2!',
-        'Action Choice: Each turn, teams can choose to MOVE a piece, PLACE a Bridge/Block, or ROTATE an active tile!',
-        'Bridge Placements (Goats): Lay a Bridge crossroad 🌉 to connect empty spaces. Bridges give goats capture protection.',
-        'Block Placements (Tigers): Lay a Block barrier 🧱 to sever connections. Blocks cannot be crossed by any team.',
+        'Path Connectivity: Pieces can only move cardinally if the path lines align between adjacent cells!',
+        'Action Choice: Each turn, teams can choose to MOVE a piece, PLACE a Bridge/Block, or ROTATE an active tile! Placing or rotating consumes your entire turn.',
+        'Bridge Placements (Goats): Spend 1 Bridge Token to lay a Bridge crossroad 🌉 to connect empty spaces. Bridges give goats capture protection.',
+        'Block Placements (Tigers): Spend 1 Block Token to lay a Block barrier 🧱 to sever connections. Blocks cannot be crossed by any team.',
         'Tile Rotation (Standard/Advanced): Rotate any pathway 🔄 90 degrees clockwise to change how corridors link!',
-        'Safe Routes: Constructing a continuous connected path spanning Left-to-Right or Top-to-Bottom protecting Goats!',
+        'Safe Routes: Constructing a continuous connected path spanning Left-to-Right or Top-to-Bottom protecting Goats! Needs at least 2 goats (Beginner) or 3 goats (Standard/Advanced) standing on it.',
         'Tiger Den (Advanced): Tiger on a Tiger Den tile gets a range-2 leap capture if paths connect.',
         'One-Way Path (Advanced): Allows movement in one direction only.',
-        `Win Condition: Survivors survived ${preset.goatSurvivalTurns} turns or formed ${targetRoutes} Safe Routes (Goats) or captured ${preset.tigerCapturesRequired} goats / triggered a 2-round lockdown (Tigers).`,
+        `Win Condition: Survivors survived ${preset.goatSurvivalTurns} turns or formed ${targetRoutes} Safe Routes (Goats) or capturing ${preset.tigerCapturesRequired} goats / triggering a 2-round lockdown (Tigers).`,
       ],
       stemMathTitle: 'Engineering Tile Specifications',
       stemMathFormula: [

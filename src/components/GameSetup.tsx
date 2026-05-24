@@ -47,8 +47,11 @@ export const GameSetup: React.FC<GameSetupProps> = ({ ideaId, onBack, onStartGam
         {/* Step 1: Version */}
         <div className="space-y-3">
           <label className="text-sm font-semibold text-slate-700">1. Board Size</label>
-          <div className="grid grid-cols-3 gap-3">
-            {(['beginner', 'standard', 'advanced'] as GameVersion[]).map(v => (
+          <div className={`grid gap-3 ${(ideaId === 9 || ideaId === 10) ? 'grid-cols-3' : 'grid-cols-2'}`}>
+            {((ideaId === 9 || ideaId === 10)
+              ? (['beginner', 'standard', 'advanced'] as GameVersion[])
+              : (['standard', 'advanced'] as GameVersion[])
+            ).map(v => (
               <button
                 key={v}
                 type="button"
@@ -66,7 +69,7 @@ export const GameSetup: React.FC<GameSetupProps> = ({ ideaId, onBack, onStartGam
               </button>
             ))}
           </div>
-          <p className="text-xs text-slate-400">{VERSION_PRESETS[version].description}</p>
+          <p className="text-xs text-slate-400">{VERSION_PRESETS[version]?.description}</p>
         </div>
 
         {/* Step 2: Format */}

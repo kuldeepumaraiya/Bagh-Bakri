@@ -15,10 +15,10 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
           STEM · Strategy · Classroom
         </p>
         <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight">
-          STEM Bagh-Bakri Lab
+          Bagh-Bakri with STEM Learning
         </h1>
         <p className="text-lg text-slate-500 max-w-xl mx-auto leading-relaxed">
-          Traditional strategy games redesigned for primary STEM learning. Goats build <strong className="text-slate-700">Math Walls</strong>. Tigers hunt. Every move is an equation.
+          Experience the ancient strategy game of Tiger and Goats reimagined as a dynamic playground for mathematical discovery, ecological systems, and computational logic.
         </p>
       </div>
 

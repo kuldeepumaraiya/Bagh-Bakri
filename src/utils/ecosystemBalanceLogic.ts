@@ -14,8 +14,8 @@ function isGrasslandCell(coord: string, gridCells: Record<string, CellConfig>): 
 }
 
 // Check if three goats are connected to form a Safe Herd
-function getSafeHerdGoats(pieces: Piece[], gridCells: Record<string, CellConfig>, gridSize: number, extraState: any): Set<string> {
-  const goats = pieces.filter(p => p.type === 'goat');
+function getSafeHerdGoats(pieces: Piece[], gridCells: Record<string, CellConfig>, gridSize: number): Set<string> {
+  const goats = pieces.filter(p => p.type === 'goat' && p.position !== "");
   const goatCoords = new Set(goats.map(g => g.position));
   const safeHerd = new Set<string>();
 
@@ -47,28 +47,17 @@ function getSafeHerdGoats(pieces: Piece[], gridCells: Record<string, CellConfig>
 
   // Filter components that satisfy Safe Herd conditions:
   // - 3 or more connected goats
-  // - At least one goat near water or on grassland
-  // - No goat in the component is thirsty
-  // - The area is not overgrazed (not in overgrazedCoords)
+  // - At least one goat ON water or ON grassland (with grass count > 0)
   components.forEach(comp => {
     if (comp.length >= 3) {
       const hasWaterOrGrass = comp.some(coord => {
-        const adjacent = getNeighbors(coord, gridSize);
-        const nearWater = adjacent.some(n => isWaterCell(n, gridCells));
-        const onGrass = isGrasslandCell(coord, gridCells);
-        return nearWater || onGrass;
+        const cell = gridCells[coord];
+        const isWater = cell?.habitat === 'water';
+        const isGrass = cell?.habitat === 'grassland' && (cell.grassCount || 0) > 0;
+        return isWater || isGrass;
       });
 
-      const hasThirstyGoat = comp.some(coord => {
-        const piece = pieces.find(p => p.position === coord);
-        return piece?.thirsty === true;
-      });
-
-      const isAreaOvergrazed = comp.some(coord => {
-        return extraState?.overgrazedCoords?.includes(coord);
-      });
-
-      if (hasWaterOrGrass && !hasThirstyGoat && !isAreaOvergrazed) {
+      if (hasWaterOrGrass) {
         comp.forEach(coord => safeHerd.add(coord));
       }
     }
@@ -180,7 +169,7 @@ export const ecosystemBalanceLogic: GameLogicEngine = {
     gridCells: Record<string, CellConfig>,
     _currentPlayer: 'goat' | 'tiger',
     version: GameVersion,
-    extraState: any
+    _extraState: any
   ): LegalMovesResult => {
     const preset = VERSION_PRESETS[version];
     const adj = getNeighbors(selectedPiece.position, preset.gridSize);
@@ -189,7 +178,7 @@ export const ecosystemBalanceLogic: GameLogicEngine = {
     const captureHighlights: string[] = [];
 
     // Safe Herd Set
-    const safeHerd = getSafeHerdGoats(pieces, gridCells, preset.gridSize, extraState);
+    const safeHerd = getSafeHerdGoats(pieces, gridCells, preset.gridSize);
 
     // Tiger hunger/weak details
     const isWeakTiger = selectedPiece.type === 'tiger' && (selectedPiece.hunger ?? 0) >= 6;
@@ -220,23 +209,26 @@ export const ecosystemBalanceLogic: GameLogicEngine = {
         // Tiger capture adjacent goat
         let allowed = true;
 
-        // Tiger hunger/weak restriction on forest/water
-        if (isWeakTiger && (destCell?.habitat === 'forest' || isWaterCell(c, gridCells))) {
-          allowed = false; // Weak tiger cannot capture in forest or near water
-        }
-
-        // Forest cover protection
-        if (destCell?.habitat === 'forest' && isWeakTiger) {
+        // 1. Forest Cover: Absolute protection
+        if (destCell?.habitat === 'forest') {
           allowed = false;
         }
 
-        // Safe Herd protection
-        if (safeHerd.has(c)) {
-          // Can break only if tiger stands on Hill or is adjacent for 1 full turn (simulated by not weak and not breaking normally)
+        // 2. Shield: Absolute protection
+        if (p.hasShield) {
+          allowed = false;
+        }
+
+        // 3. Safe Herd protection
+        const isGoatInSafeHerd = safeHerd.has(c);
+        const goatOnHill = destCell?.habitat === 'hill';
+
+        if (isGoatInSafeHerd && !goatOnHill) {
           const tigerCell = gridCells[selectedPiece.position];
           const tigerOnHill = tigerCell?.habitat === 'hill';
-          if (!tigerOnHill && isWeakTiger) {
-            allowed = false;
+          
+          if (!tigerOnHill || isWeakTiger) {
+            allowed = false; // Weak tiger or tiger not on Hill cannot break protection!
           }
         }
 
@@ -271,6 +263,10 @@ export const ecosystemBalanceLogic: GameLogicEngine = {
 
     if (isCapture) {
       const targetGoat = pieces.find(p => p.position === toCoord)!;
+      const tigerCell = gridCells[selectedPiece.position];
+      const tigerOnHill = tigerCell?.habitat === 'hill';
+      const safeHerd = getSafeHerdGoats(pieces, gridCells, preset.gridSize);
+      const isGoatInSafeHerd = safeHerd.has(toCoord);
 
       // Update pieces: Remove target goat and update tiger
       updatedPieces = updatedPieces.filter(p => p.id !== targetGoat.id).map(p => {
@@ -300,11 +296,16 @@ export const ecosystemBalanceLogic: GameLogicEngine = {
         }
       }
 
+      let breakMsg = '';
+      if (isGoatInSafeHerd && tigerOnHill) {
+        breakMsg = 'Tiger used Hill advantage to break Safe Herd protection! ';
+      }
+
       if (overhunted) {
         balanceChange -= 2;
-        eventMsg = `Predator overhunting! Tiger captured Goat at ${toCoord}. Ecosystem Balance drops by 2!`;
+        eventMsg = `${breakMsg}Predator overhunting! Tiger captured Goat at ${toCoord}. Ecosystem Balance drops by 2!`;
       } else {
-        eventMsg = `Tiger successfully hunted Goat at ${toCoord}. Tiger hunger reduced by 2.`;
+        eventMsg = `${breakMsg}Tiger successfully hunted Goat at ${toCoord}. Tiger hunger reduced by 2.`;
       }
     } else {
       // Normal move
@@ -501,7 +502,7 @@ export const ecosystemBalanceLogic: GameLogicEngine = {
     }
 
     // 3. Safe Herd Protection
-    const safeHerd = getSafeHerdGoats(pieces, gridCells, preset.gridSize, extraState);
+    const safeHerd = getSafeHerdGoats(pieces, gridCells, preset.gridSize);
     safeHerd.forEach(coord => protectedSet.add(coord));
 
     return protectedSet;

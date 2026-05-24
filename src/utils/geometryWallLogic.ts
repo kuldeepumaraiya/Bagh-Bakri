@@ -13,7 +13,7 @@ export function detectGeometryWalls(
   pieces: Piece[],
   version: GameVersion
 ) {
-  const goats = pieces.filter(p => p.type === 'goat');
+  const goats = pieces.filter(p => p.type === 'goat' && p.position !== "");
   const goatCoords = goats.map(g => g.position);
   const goatSet = new Set(goatCoords);
   const preset = VERSION_PRESETS[version];
@@ -201,12 +201,8 @@ export const geometryWallLogic: GameLogicEngine = {
           moveHighlights.push(c);
         } else if (p.type === 'goat') {
           const isProtected = protectedGoats.has(c);
-          const isWeakPoint = weakPoints.has(c);
 
           if (!isProtected) {
-            captureHighlights.push(c);
-          } else if (isWeakPoint) {
-            // Tiger can capture weak points of the geometry wall directly
             captureHighlights.push(c);
           }
         }
@@ -235,19 +231,9 @@ export const geometryWallLogic: GameLogicEngine = {
 
     if (isCapture) {
       const goat = pieces.find(p => p.position === toCoord)!;
-      const isProtected = protectedGoats.has(toCoord);
-      const isWeak = weakPoints.has(toCoord);
-
       updatedPieces = updatedPieces.filter(p => p.id !== goat.id).map(p => p.id === selectedPiece.id ? { ...p, position: toCoord } : p);
       captureStatus = 'success';
-
-      if (isProtected && isWeak) {
-        wallStatus = 'broken';
-        const shape = activeWalls.find(w => w.weakPoints.includes(toCoord));
-        calcMsg = `Shape Wall Broken! Tiger attacked corner/middle of ${shape ? shape.type : 'Geometry'} Wall at ${toCoord}!`;
-      } else {
-        calcMsg = `Goat captured at ${toCoord}!`;
-      }
+      calcMsg = `Goat captured at ${toCoord}!`;
     } else {
       updatedPieces = updatedPieces.map(p => p.id === selectedPiece.id ? { ...p, position: toCoord } : p);
 
@@ -320,10 +306,9 @@ export const geometryWallLogic: GameLogicEngine = {
     _version: GameVersion
   ) => {
     if (isProtected) {
-      // Geometry wall: protected goats can only be captured at weak points
       return {
-        allowed: true, // Weak-point check is done in getLegalMoves; reaching here means it's a valid target
-        calculation: `Geometry Wall weak point at ${goatCoord} — Tiger attacks the vulnerable position! ✓`,
+        allowed: false,
+        calculation: `Geometry Wall formed! Goat at ${goatCoord} is protected and cannot be captured! ✗`,
       };
     }
     return {

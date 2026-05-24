@@ -18,7 +18,7 @@ export interface GameIdea {
 export const GAME_IDEAS: GameIdea[] = [
   {
     id: 1,
-    title: 'Bagh-Bakri Math Wall Edition',
+    title: 'Math Wall Edition',
     status: 'Playable',
     route: '/ideas/1',
     stemFocus: 'Addition, comparison, spatial reasoning, strategic planning, data observation, team decision-making',
@@ -39,7 +39,7 @@ export const GAME_IDEAS: GameIdea[] = [
   },
   {
     id: 2,
-    title: 'Bagh-Bakri Number Trail',
+    title: 'Number Trail',
     status: 'Playable',
     route: '/ideas/2',
     stemFocus: 'Counting, number sequencing, ascending order, descending order, comparison, spatial reasoning',
@@ -62,7 +62,7 @@ export const GAME_IDEAS: GameIdea[] = [
   },
   {
     id: 3,
-    title: 'Bagh-Bakri Pattern Trail',
+    title: 'Pattern Trail',
     status: 'Playable',
     route: '/ideas/3',
     stemFocus: 'Pattern recognition, sequencing, classification, prediction, spatial reasoning, logical thinking',
@@ -83,7 +83,7 @@ export const GAME_IDEAS: GameIdea[] = [
   },
   {
     id: 4,
-    title: 'Bagh-Bakri Energy Quest',
+    title: 'Energy Quest',
     status: 'Playable',
     route: '/ideas/4',
     stemFocus: 'Addition, subtraction, resource management, optimization, planning, cause and effect',
@@ -106,7 +106,7 @@ export const GAME_IDEAS: GameIdea[] = [
   },
   {
     id: 5,
-    title: 'Bagh-Bakri Geometry Wall',
+    title: 'Geometry Wall',
     status: 'Playable',
     route: '/ideas/5',
     stemFocus: 'Lines, triangles, squares, symmetry, spatial reasoning, structure logic',
@@ -130,7 +130,7 @@ export const GAME_IDEAS: GameIdea[] = [
   },
   {
     id: 6,
-    title: 'Bagh-Bakri Probability Capture',
+    title: 'Probability Capture',
     status: 'Playable',
     route: '/ideas/6',
     stemFocus: 'Probability, chance, prediction, risk assessment, comparison, data recording',
@@ -155,7 +155,7 @@ export const GAME_IDEAS: GameIdea[] = [
   },
   {
     id: 7,
-    title: 'Bagh-Bakri Ecosystem Balance',
+    title: 'Ecosystem Balance',
     status: 'Playable',
     route: '/ideas/7',
     stemFocus: 'Ecology, sustainability, predator-prey balance, food, water, habitat, systems thinking',
@@ -179,7 +179,7 @@ export const GAME_IDEAS: GameIdea[] = [
   },
   {
     id: 8,
-    title: 'Bagh-Bakri Data Hunt',
+    title: 'Data Hunt',
     status: 'Playable',
     route: '/ideas/8',
     stemFocus: 'Data collection, tally marks, comparison, prediction, pattern finding, basic statistics',
@@ -202,7 +202,7 @@ export const GAME_IDEAS: GameIdea[] = [
   },
   {
     id: 9,
-    title: 'Bagh-Bakri Logic Lab',
+    title: 'Logic Lab',
     status: 'Playable',
     route: '/ideas/9',
     stemFocus: 'Conditional logic, algorithmic thinking, classification, comparison, prediction, problem-solving',
@@ -223,7 +223,7 @@ export const GAME_IDEAS: GameIdea[] = [
   },
   {
     id: 10,
-    title: 'Bagh-Bakri Build-a-Board',
+    title: 'Build-a-Board',
     status: 'Playable',
     route: '/ideas/10',
     stemFocus: 'Engineering design, spatial reasoning, connectivity, systems thinking, testing, iteration',

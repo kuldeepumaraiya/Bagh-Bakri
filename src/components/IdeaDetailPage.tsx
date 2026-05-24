@@ -172,6 +172,51 @@ export const IdeaDetailPage: React.FC<IdeaDetailPageProps> = ({ idea, onBack, on
 
       </div>
 
+      {/* Premium Tutorial Cards at the bottom of the Idea details */}
+      <div className="border-t border-slate-200 pt-8 mt-12 space-y-4">
+        <div className="text-center space-y-1">
+          <h2 className="text-xl font-black text-slate-800 tracking-tight flex items-center justify-center gap-1.5">
+            <Sparkles className="w-5 h-5 text-emerald-600 animate-pulse" />
+            <span>Quick Start & Strategy Tutorial</span>
+          </h2>
+          <p className="text-xs text-slate-400 font-medium">Learn the core concepts and strategy tips for this STEM edition</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-2.5 shadow-2xs hover:shadow-xs transition-shadow duration-200">
+            <div className="text-emerald-600 text-lg font-black flex items-center gap-1.5">
+              <span>📋</span>
+              <span className="text-sm font-black text-slate-800 uppercase tracking-wider">How to Play</span>
+            </div>
+            <ul className="text-xs text-slate-500 space-y-1.5 list-disc pl-4 leading-relaxed font-medium">
+              <li><strong>Placement Phase:</strong> Alternate placing pieces one at a time, starting with Tigers. Board starts completely empty!</li>
+              <li><strong>Standard Play:</strong> Click on your active piece to select it, then click highlighted cells to move.</li>
+              <li><strong>Win Targets:</strong> Goats win by surviving or completing target shapes. Tigers win by capturing Goats.</li>
+            </ul>
+          </div>
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-2.5 shadow-2xs hover:shadow-xs transition-shadow duration-200">
+            <div className="text-indigo-600 text-lg font-black flex items-center gap-1.5">
+              <span>🎓</span>
+              <span className="text-sm font-black text-slate-800 uppercase tracking-wider">STEM Learning Focus</span>
+            </div>
+            <div className="space-y-2 text-xs">
+              <p className="text-slate-600 font-bold leading-relaxed">{idea.stemFocus}</p>
+              <p className="text-slate-400 font-medium leading-relaxed">Every move, capture, or defense follows strict rules designed to build computational, mathematical, and spatial reasoning skills.</p>
+            </div>
+          </div>
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-2.5 shadow-2xs hover:shadow-xs transition-shadow duration-200">
+            <div className="text-amber-600 text-lg font-black flex items-center gap-1.5">
+              <span>💡</span>
+              <span className="text-sm font-black text-slate-800 uppercase tracking-wider">Strategy Tips</span>
+            </div>
+            <ul className="text-xs text-slate-500 space-y-1.5 list-disc pl-4 leading-relaxed font-medium">
+              <li><strong>Goats:</strong> Safety lies in numbers! Stay adjacent to build protective shapes, number trails, or safe herds.</li>
+              <li><strong>Tigers:</strong> Watch your targets carefully. Wait for goats to isolate themselves or fail to satisfy target arithmetic rules.</li>
+              <li><strong>Guides:</strong> Toggle <strong>Move Guides</strong> ON in the toolbar if you need help finding valid moves!</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
       {/* Bottom Back Button */}
       <div className="flex justify-center pt-4">
         <button

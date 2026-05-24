@@ -87,8 +87,7 @@ function App() {
           className="flex items-center gap-2 font-bold text-slate-800 hover:text-emerald-600 transition-colors cursor-pointer"
         >
           <span className="text-xl">🎯</span>
-          <span className="text-base font-bold tracking-tight">STEM Bagh-Bakri</span>
-          <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">LAB</span>
+          <span className="text-base font-bold tracking-tight">Bagh-Bakri with STEM Learning</span>
         </button>
 
         <nav className="flex items-center gap-1 text-sm font-semibold">
@@ -141,7 +140,7 @@ function App() {
       {/* Footer */}
       <footer className="border-t border-slate-200 py-6 px-6 text-center bg-white">
         <p className="text-xs text-slate-400 font-medium">
-          © {new Date().getFullYear()} STEM Bagh-Bakri Lab · Built for primary strategy education · Runs fully in-browser
+          © {new Date().getFullYear()} Bagh-Bakri with STEM Learning · Built for primary strategy education · Runs fully in-browser
         </p>
       </footer>
     </div>

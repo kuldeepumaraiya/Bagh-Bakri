@@ -28,7 +28,7 @@ function getGridDistance(c1: string, c2: string): number {
 
 // Find coordinate of the nearest goat to a tiger position
 function getDistanceToNearestGoat(tigerCoord: string, pieces: Piece[]): number {
-  const goats = pieces.filter(p => p.type === 'goat');
+  const goats = pieces.filter(p => p.type === 'goat' && p.position !== "");
   if (goats.length === 0) return 999;
   let minDistance = 999;
   goats.forEach(g => {
@@ -60,16 +60,10 @@ export const dataHuntLogic: GameLogicEngine = {
       pieces: JSON.parse(JSON.stringify(preset.startingPieces)),
       gridCells,
       extraState: {
-        // Event tokens
-        tigerMoveTokens: 0,
-        goatMoveTokens: 0,
-        attackTokens: 0,
-        captureTokens: 0,
         escapeTokens: 0,
-        blockTokens: 0,
+        attackTokens: 0,
         predictionTokensGoat: 0,
         predictionTokensTiger: 0,
-        tigerCenterMoveTokens: 0,
 
         // Zone Tallies
         zoneTallies: {
@@ -81,17 +75,15 @@ export const dataHuntLogic: GameLogicEngine = {
 
         // Prediction mechanics
         prediction: '', // Selected prediction ID (e.g. 'tiger_nearest')
-        predictionName: '', // e.g. 'Tiger will move toward nearest goat'
+        predictionName: '',
         predictionCorrect: null,
         consecutiveWrongPredictions: 0,
         bonusDisabledTurns: 0,
 
-        // Active Power (what power is currently activated for the upcoming turn)
-        activePower: null, // 'safeStep' | 'strongBlock' | 'focusedHunt' | 'ambush' | 'centerControl'
-        strongBlockCell: null,
-        strongBlockDuration: 0,
-        centerControlActive: false,
-        centerControlDuration: 0,
+        // Active Power
+        activePower: null, // 'safeStep' | 'focusedHunt' | 'smartMove' | 'dataShield'
+        shieldedGoatId: null,
+        shieldedGoatCell: null,
         
         escapesCount: 0,
         capturesCount: 0,
@@ -110,53 +102,18 @@ export const dataHuntLogic: GameLogicEngine = {
     const preset = VERSION_PRESETS[version];
     const moveHighlights: string[] = [];
     const captureHighlights: string[] = [];
-
-    // If Strong Block is active, Goats can choose an adjacent empty cell to block!
-    if (currentPlayer === 'goat' && extraState?.activePower === 'strongBlock') {
-      const adj = getNeighbors(selectedPiece.position, preset.gridSize);
-      adj.forEach(c => {
-        const occupies = pieces.some(p => p.position === c);
-        if (!occupies) {
-          moveHighlights.push(c); // Highlight empty cells for placing the block
-        }
-      });
-      return { moveHighlights, captureHighlights };
-    }
+    const wallHighlights: string[] = [];
 
     const baseNeighbors = getNeighbors(selectedPiece.position, preset.gridSize);
+    const adj = baseNeighbors;
 
-    // Filter neighbors by Center Control or Strong Block cells
-    const getFilteredNeighbors = (coord: string) => {
-      let adj = getNeighbors(coord, preset.gridSize);
-      
-      // Filter out Strong Block cell if active
-      if (extraState?.strongBlockCell) {
-        adj = adj.filter(c => c !== extraState.strongBlockCell);
-      }
-      
-      // Filter out Center Control cell if active and current piece is goat
-      if (selectedPiece.type === 'goat' && extraState?.centerControlActive) {
-        const centerCoord = colRowToCoord(Math.floor(preset.gridSize / 2), Math.floor(preset.gridSize / 2));
-        const tigerCoords = pieces.filter(p => p.type === 'tiger').map(p => p.position);
-        const tigerAdjacentToCenter = tigerCoords.some(tc => areAdjacent(tc, centerCoord));
-        if (tigerAdjacentToCenter) {
-          adj = adj.filter(c => c !== centerCoord); // Block center cell for goats
-        }
-      }
-      return adj;
-    };
-
-    const adj = getFilteredNeighbors(selectedPiece.position);
-
-    // 1. Ambush or Safe Step - Range 2 movements
-    const isAmbushActive = selectedPiece.type === 'tiger' && extraState?.activePower === 'ambush';
+    // 1. Safe Step - Goat Range 2 movements
     const isSafeStepActive = selectedPiece.type === 'goat' && extraState?.activePower === 'safeStep';
 
-    if (isAmbushActive || isSafeStepActive) {
-      // Find all cells at distance 1 and distance 2
+    if (isSafeStepActive) {
       const visited = new Set<string>([selectedPiece.position]);
       
-      // Distance 1
+      // Distance 1 empty cells
       adj.forEach(c => {
         const p = pieces.find(x => x.position === c);
         if (!p) {
@@ -164,7 +121,7 @@ export const dataHuntLogic: GameLogicEngine = {
           visited.add(c);
           
           // Distance 2 neighbors from this empty cell
-          const subAdj = getFilteredNeighbors(c);
+          const subAdj = getNeighbors(c, preset.gridSize);
           subAdj.forEach(sc => {
             if (!visited.has(sc)) {
               const sp = pieces.find(x => x.position === sc);
@@ -174,12 +131,10 @@ export const dataHuntLogic: GameLogicEngine = {
               }
             }
           });
-        } else if (p.type === 'goat' && selectedPiece.type === 'tiger') {
-          captureHighlights.push(c);
         }
       });
 
-      return { moveHighlights, captureHighlights };
+      return { moveHighlights, captureHighlights, wallHighlights };
     }
 
     // 2. Focused Hunt - Tiger can leap capture at distance 2
@@ -211,7 +166,7 @@ export const dataHuntLogic: GameLogicEngine = {
           const midCoord = colRowToCoord(intermediateCol, intermediateRow);
           const destCoord = colRowToCoord(nc, nr);
 
-          // Path is clear if intermediate is empty or contains the target goat
+          // Path is clear if intermediate is empty
           const midPiece = pieces.find(p => p.position === midCoord);
           const destPiece = pieces.find(p => p.position === destCoord);
 
@@ -222,7 +177,66 @@ export const dataHuntLogic: GameLogicEngine = {
       });
     }
 
-    return { moveHighlights, captureHighlights };
+    // 3. Smart Move highlights
+    const isSmartMoveActive = extraState?.activePower === 'smartMove';
+    if (isSmartMoveActive) {
+      if (currentPlayer === 'goat' && selectedPiece.type === 'goat') {
+        // Calculate danger zones (cells adjacent to tigers or threatened by focused hunt capture)
+        const dangerZones = new Set<string>();
+        const tigers = pieces.filter(p => p.type === 'tiger' && p.position !== "");
+        
+        tigers.forEach(t => {
+          // Adjacent danger
+          const tAdj = getNeighbors(t.position, preset.gridSize);
+          tAdj.forEach(c => dangerZones.add(c));
+          
+          // Focused hunt danger (even if tiger doesn't have it active, it's a potential threat zone)
+          const { col, row } = coordToColRow(t.position);
+          const directions = [
+            { dc: 2, dr: 0 }, { dc: -2, dr: 0 },
+            { dc: 0, dr: 2 }, { dc: 0, dr: -2 },
+            { dc: 2, dr: 2 }, { dc: -2, dr: -2 },
+            { dc: 2, dr: -2 }, { dc: -2, dr: 2 }
+          ];
+          directions.forEach(d => {
+            const nc = col + d.dc;
+            const nr = row + d.dr;
+            if (nc >= 0 && nc < preset.gridSize && nr >= 0 && nr < preset.gridSize) {
+              const midCoord = colRowToCoord(col + d.dc / 2, row + d.dr / 2);
+              const destCoord = colRowToCoord(nc, nr);
+              const midPiece = pieces.find(p => p.position === midCoord);
+              if (!midPiece) {
+                dangerZones.add(destCoord);
+              }
+            }
+          });
+        });
+
+        dangerZones.forEach(c => wallHighlights.push(c));
+      } else if (currentPlayer === 'tiger' && selectedPiece.type === 'tiger') {
+        // Calculate goat escape options (cells where goats can move and escape tiger proximity)
+        const escapeOptions = new Set<string>();
+        const goats = pieces.filter(p => p.type === 'goat' && p.position !== "");
+        const tigers = pieces.filter(p => p.type === 'tiger' && p.position !== "");
+
+        goats.forEach(g => {
+          const gNeighbors = getNeighbors(g.position, preset.gridSize);
+          gNeighbors.forEach(c => {
+            const isOccupied = pieces.some(p => p.position === c);
+            if (!isOccupied) {
+              const adjacentToTiger = tigers.some(t => areAdjacent(c, t.position));
+              if (!adjacentToTiger) {
+                escapeOptions.add(c);
+              }
+            }
+          });
+        });
+
+        escapeOptions.forEach(c => wallHighlights.push(c));
+      }
+    }
+
+    return { moveHighlights, captureHighlights, wallHighlights };
   },
 
   applyMove: (
@@ -242,56 +256,38 @@ export const dataHuntLogic: GameLogicEngine = {
     let captureStatus: 'none' | 'success' | 'blocked' = 'none';
     const destZone = getCoordZone(toCoord, preset.gridSize);
 
-    // Disable block cell duration ticker
-    if (currentPlayer === 'goat') {
-      if (nextExtra.strongBlockDuration > 0) {
-        nextExtra.strongBlockDuration -= 1;
-        if (nextExtra.strongBlockDuration === 0) {
-          nextExtra.strongBlockCell = null;
-        }
-      }
-      if (nextExtra.centerControlDuration > 0) {
-        nextExtra.centerControlDuration -= 1;
-        if (nextExtra.centerControlDuration === 0) {
-          nextExtra.centerControlActive = false;
-        }
-      }
-    }
-
-    // 1. Evaluate previous team's prediction before making this move
+    // 1. Evaluate prediction
     const opponentTeam = currentPlayer === 'goat' ? 'tiger' : 'goat';
     if (nextExtra.prediction) {
       let isCorrect = false;
       const pred = nextExtra.prediction;
 
       if (opponentTeam === 'goat' && currentPlayer === 'tiger') {
-        // Evaluating Goat Team's predictions of Tiger's action
         const prevNearestGoatDist = getDistanceToNearestGoat(selectedPiece.position, pieces);
         const postNearestGoatDist = getDistanceToNearestGoat(toCoord, pieces);
 
-        if (pred === 'tiger_nearest') {
+        if (pred === 'tiger_attack') {
+          isCorrect = isCapture;
+        } else if (pred === 'tiger_nearest') {
           isCorrect = !isCapture && postNearestGoatDist < prevNearestGoatDist;
         } else if (pred === 'tiger_center') {
           isCorrect = !isCapture && destZone === 'center';
-        } else if (pred === 'tiger_attack') {
-          isCorrect = isCapture;
-        } else if (pred === 'tiger_retreat') {
-          isCorrect = !isCapture && postNearestGoatDist > prevNearestGoatDist;
+        } else if (pred === 'tiger_focused_hunt') {
+          isCorrect = (extraState.activePower === 'focusedHunt') || (isCapture && getGridDistance(selectedPiece.position, toCoord) === 2);
         }
       } else if (opponentTeam === 'tiger' && currentPlayer === 'goat') {
-        // Evaluating Tiger Team's predictions of Goat's action
         const wasAdjacentToTiger = pieces.filter(p => p.type === 'tiger').some(t => areAdjacent(selectedPiece.position, t.position));
         const isAdjacentToTiger = pieces.filter(p => p.type === 'tiger').some(t => areAdjacent(toCoord, t.position));
         const neighboringGoats = pieces.filter(p => p.type === 'goat' && p.id !== selectedPiece.id && areAdjacent(toCoord, p.position)).length;
 
-        if (pred === 'goat_group') {
-          isCorrect = neighboringGoats >= 1;
-        } else if (pred === 'goat_escape') {
+        if (pred === 'goat_escape') {
           isCorrect = wasAdjacentToTiger && !isAdjacentToTiger;
+        } else if (pred === 'goat_group') {
+          isCorrect = neighboringGoats >= 1;
         } else if (pred === 'goat_edge') {
           isCorrect = destZone === 'edge';
-        } else if (pred === 'goat_block') {
-          isCorrect = isAdjacentToTiger;
+        } else if (pred === 'goat_safe_step') {
+          isCorrect = (extraState.activePower === 'safeStep') || (getGridDistance(selectedPiece.position, toCoord) === 2);
         }
       }
 
@@ -326,28 +322,33 @@ export const dataHuntLogic: GameLogicEngine = {
       isDataLocked = true;
     }
 
-    // 2. Handle Strong Block placement action
-    if (currentPlayer === 'goat' && nextExtra.activePower === 'strongBlock') {
-      nextExtra.strongBlockCell = toCoord;
-      nextExtra.strongBlockDuration = 2; // Lasts 1 tiger turn (2 global turn half-steps)
-      nextExtra.blockTokens = (nextExtra.blockTokens || 0) + 1;
-      nextExtra.activePower = null;
-      calcMsg += `Goats placed Strong Block at ${toCoord}! Tigers cannot enter for 1 round.`;
-      
-      return {
-        pieces,
-        gridCells,
-        extraState: nextExtra,
-        calculationMsg: calcMsg,
-        captureStatus: 'none',
-        wallStatus: 'none',
-      };
-    }
-
-    // 3. Normal Movement and Capture Actions
+    // 2. Handle Shield block check
     if (isCapture) {
       const targetGoat = pieces.find(p => p.position === toCoord)!;
+      if (targetGoat && nextExtra.shieldedGoatId === targetGoat.id) {
+        // Capture is BLOCKED by Temporary Data Shield!
+        captureStatus = 'blocked';
+        if (!isDataLocked) {
+          nextExtra.attackTokens = (nextExtra.attackTokens || 0) + 1;
+        }
+        calcMsg += `Tiger attempted capture on Goat ${targetGoat.label} at ${toCoord}, but it was BLOCKED by the Temporary Data Shield! Tiger earned 1 Attack Token.`;
+        
+        // Consumed after block or tiger turn completion
+        nextExtra.shieldedGoatId = null;
+        nextExtra.shieldedGoatCell = null;
+        nextExtra.activePower = null;
 
+        return {
+          pieces,
+          gridCells,
+          extraState: nextExtra,
+          calculationMsg: calcMsg,
+          captureStatus: 'blocked',
+          wallStatus: 'none',
+        };
+      }
+
+      // Successful capture
       updatedPieces = updatedPieces
         .filter(p => p.id !== targetGoat.id)
         .map(p => p.id === selectedPiece.id ? { ...p, position: toCoord } : p);
@@ -355,7 +356,7 @@ export const dataHuntLogic: GameLogicEngine = {
       nextExtra.capturesCount = (nextExtra.capturesCount || 0) + 1;
       
       if (!isDataLocked) {
-        nextExtra.captureTokens = (nextExtra.captureTokens || 0) + 1;
+        nextExtra.attackTokens = (nextExtra.attackTokens || 0) + 1;
         nextExtra.zoneTallies[destZone] += 1;
         nextExtra.tallyHistory.push(`Capture at ${destZone.toUpperCase()} (${toCoord})`);
       }
@@ -369,12 +370,11 @@ export const dataHuntLogic: GameLogicEngine = {
       
       if (selectedPiece.type === 'goat') {
         if (!isDataLocked) {
-          nextExtra.goatMoveTokens = (nextExtra.goatMoveTokens || 0) + 1;
           nextExtra.zoneTallies[destZone] += 1;
         }
 
         // Tally escapes: Goat moves away from cell adjacent to a tiger
-        const tigerPositions = pieces.filter(p => p.type === 'tiger').map(p => p.position);
+        const tigerPositions = pieces.filter(p => p.type === 'tiger' && p.position !== "").map(p => p.position);
         const wasAdjacentToTiger = tigerPositions.some(tp => areAdjacent(selectedPiece.position, tp));
         const isAdjacentToTiger = tigerPositions.some(tp => areAdjacent(toCoord, tp));
 
@@ -389,39 +389,25 @@ export const dataHuntLogic: GameLogicEngine = {
           calcMsg += `Goat moved to ${toCoord} (${destZone} zone).`;
         }
 
-        // Tally blocks: Goat moves to a cell adjacent to both a tiger and another goat
-        const neighboringGoats = pieces.filter(p => p.type === 'goat' && p.id !== selectedPiece.id && areAdjacent(toCoord, p.position)).length;
-        if (isAdjacentToTiger && neighboringGoats >= 1) {
-          if (!isDataLocked) {
-            nextExtra.blockTokens = (nextExtra.blockTokens || 0) + 1;
-            nextExtra.tallyHistory.push(`Block at ${destZone.toUpperCase()} (${toCoord})`);
-          }
-          calcMsg += ` Goat block formed adjacent to Tiger!`;
-        }
-
         if (nextExtra.activePower === 'safeStep' || nextExtra.activePower === 'smartMove') {
           nextExtra.activePower = null; // Consume goat powers
         }
       } else {
         if (!isDataLocked) {
-          nextExtra.tigerMoveTokens = (nextExtra.tigerMoveTokens || 0) + 1;
           nextExtra.zoneTallies[destZone] += 1;
-          if (destZone === 'center') {
-            nextExtra.tigerCenterMoveTokens = (nextExtra.tigerCenterMoveTokens || 0) + 1;
-          }
         }
         calcMsg += `Tiger moved to ${toCoord} (${destZone} zone).`;
 
-        if (nextExtra.activePower === 'ambush') {
-          nextExtra.activePower = null; // Consume Ambush
-        }
-        if (nextExtra.activePower === 'centerControl') {
-          // Activate center control!
-          nextExtra.centerControlActive = true;
-          nextExtra.centerControlDuration = 2; // Lasts 1 goat turn
-          nextExtra.activePower = null;
+        if (nextExtra.activePower === 'smartMove') {
+          nextExtra.activePower = null; // Consume tiger powers
         }
       }
+    }
+
+    // Always clear shielded goat at the end of the Tiger turn
+    if (currentPlayer === 'tiger') {
+      nextExtra.shieldedGoatId = null;
+      nextExtra.shieldedGoatCell = null;
     }
 
     return {
@@ -442,25 +428,9 @@ export const dataHuntLogic: GameLogicEngine = {
   ): Set<string> => {
     const protectedSet = new Set<string>();
 
-    // If Smart Move or Safe Step is active, all goats have active shield for this turn
-    if (extraState?.activePower === 'smartMove') {
-      pieces.forEach(p => {
-        if (p.type === 'goat') protectedSet.add(p.position);
-      });
+    if (extraState?.shieldedGoatCell) {
+      protectedSet.add(extraState.shieldedGoatCell);
     }
-
-    // Goats are grouped if 2 or more goats are adjacent
-    pieces.forEach(p => {
-      if (p.type === 'goat') {
-        const adjacentGoats = pieces.filter(
-          other => other.type === 'goat' && other.id !== p.id && areAdjacent(p.position, other.position)
-        ).length;
-        
-        if (adjacentGoats >= 1) {
-          protectedSet.add(p.position); // Grouped goat cannot be captured by Focused Hunt leap
-        }
-      }
-    });
 
     return protectedSet;
   },
@@ -491,9 +461,8 @@ export const dataHuntLogic: GameLogicEngine = {
     extraState: any
   ): string => {
     const active = extraState?.activePower ? `[Active Power: ${extraState.activePower}] ` : '';
-    const block = extraState?.strongBlockCell ? `[Blocked Cell: ${extraState.strongBlockCell}] ` : '';
-    const center = extraState?.centerControlActive ? `[Center Control Active] ` : '';
-    return `${active}${block}${center}${lastCalculation}`;
+    const shield = extraState?.shieldedGoatCell ? `[Shielded Goat at: ${extraState.shieldedGoatCell}] ` : '';
+    return `${active}${shield}${lastCalculation}`;
   },
 
   getHowToPlayGuide: (version: GameVersion) => {
@@ -503,30 +472,27 @@ export const dataHuntLogic: GameLogicEngine = {
     else if (version === 'advanced') escapeReq = 7;
 
     return {
-      title: 'Bagh-Bakri Data Hunt',
+      title: 'Bagh-Bakri Data Hunt with STEM Learning',
       studentGuide: [
         'Goal for Goat Team: Keep Goats safe by surviving or collecting escape data to outrun tigers!',
         'Goal for Tiger Team: Track Goats, unlock hunting data powerups, and capture the herd.',
         'Zones: Board divided into 3 zones: CORNER (highly exposed), EDGE (partially secure), CENTER (safest). Cells display these labels.',
-        'Data Tokens: Making moves, attacks, escapes, blocks, and predictions earns Data Tokens!',
+        'Data Tokens: Making moves, attacks, escapes, and predictions earns Data Tokens!',
         'Goat Power-Ups:',
         '  - Safe Step (3 Escape Tokens): Move one goat up to 2 connected cells.',
-        '  - Strong Block (3 Block Tokens): Block a tiger from entering a cell for 1 round.',
-        '  - Smart Move (2 Prediction Tokens): Gain capture immunity and see tiger moves.',
+        '  - Temporary Data Shield (3 Escape Tokens): Shield a selected goat for 1 tiger turn (cannot be captured).',
+        '  - Smart Move (2 Prediction Tokens): Highlights danger zones on the board (cells threatened by tiger).',
         'Tiger Power-Ups:',
-        '  - Focused Hunt (3 Attack Tokens): Long range leap capture at distance 2 (cannot capture grouped goats).',
-        '  - Ambush (2 Prediction Tokens): Double step movement (up to 2 empty nodes).',
-        '  - Center Control (3 center Move Tokens): Prevent Goats from passing through the center cell.',
-        'Prediction Mechanic: Predict opponent movements to earn Prediction Tokens! Wrong predictions disable data collection in Advanced.',
+        '  - Focused Hunt (3 Attack Tokens): Long range leap capture at distance 2 in straight/diagonal lines if path is clear.',
+        '  - Smart Move (2 Prediction Tokens): Highlights goat escape routes (cells where goats can escape tiger proximity).',
+        'Prediction Mechanic: Predict opponent movements to earn Prediction Tokens! Incorrect predictions in Advanced disable token earning for 1 round.',
         `Win Condition: Surviving ${preset.goatSurvivalTurns} turns or escaping ${escapeReq} times (Goats) or capturing ${preset.tigerCapturesRequired} goats (Tigers).`,
       ],
       stemMathTitle: 'Data Event Tokens Table',
       stemMathFormula: [
-        { label: 'Goat Escape Token', formula: 'Goat moves away from Tiger proximity cell (3 unlocks Safe Step)' },
-        { label: 'Goat Block Token', formula: 'Goat moves to block Tiger path next to Goat (3 unlocks Strong Block)' },
+        { label: 'Goat Escape Token', formula: 'Goat moves away from Tiger proximity cell (3 unlocks Safe Step or Data Shield)' },
         { label: 'Tiger Attack Token', formula: 'Tiger completes a capture attempt (3 unlocks Focused Hunt)' },
-        { label: 'Prediction Token', formula: 'Correctly predict opponent next move (2 unlocks Smart Move/Ambush)' },
-        { label: 'Tiger Center Token', formula: 'Tiger lands in Center zone (3 unlocks Center Control)' },
+        { label: 'Prediction Token', formula: 'Correctly predict opponent next move (2 unlocks Smart Move)' },
       ],
       presets: [
         { name: 'Zones Board', info: `${preset.gridSize}×${preset.gridSize} Board with Corner, Edge, and Center zones` },
@@ -554,10 +520,10 @@ export const dataHuntLogic: GameLogicEngine = {
         'Which zone has the highest density of movements so far?',
         'Was the prediction correct? How should we adjust our model?',
         'Do Goats have enough escape data to activate a Safe Step?',
-        'Should we use Center Control now to lock down the board?',
+        'Should we use a Data Shield now to protect an exposed goat?',
       ],
       roles: [
-        { role: 'Data Recorder', desc: 'Maintain live count of Escape, Block, Attack, and Prediction Tokens.' },
+        { role: 'Data Recorder', desc: 'Maintain live count of Escape, Attack, and Prediction Tokens.' },
         { role: 'Zone Analyst', desc: 'Report the tally percentage of Corners, Edges, and Centers.' },
         { role: 'Prediction Checker', desc: 'Announce predictions and verify if the opponent\'s move matched.' },
         { role: 'Strategy Explainer', desc: 'Advise on spending tokens for optimal offensive/defensive powers.' },

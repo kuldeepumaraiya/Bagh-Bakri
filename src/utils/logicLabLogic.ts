@@ -20,8 +20,8 @@ export const RULE_DECK: RuleCard[] = [
   { id: 'diagonal-only', name: 'Diagonal Move Only', description: 'No straight movements are allowed this turn. Diagonal steps only.', color: 'bg-sky-50 border-sky-200 text-sky-700' },
   
   // Standard Rules
-  { id: 'greater-move', name: 'Greater Path', description: 'Target cell value must be GREATER than current cell value.', color: 'bg-emerald-50 border-emerald-200 text-emerald-700' },
-  { id: 'smaller-move', name: 'Smaller Path', description: 'Target cell value must be SMALLER than current cell value.', color: 'bg-orange-50 border-orange-200 text-orange-700' },
+  { id: 'greater-move', name: 'Greater Path', description: 'Target cell value must be GREATER than current cell value (with 5 wrapping to 1).', color: 'bg-emerald-50 border-emerald-200 text-emerald-700' },
+  { id: 'smaller-move', name: 'Smaller Path', description: 'Target cell value must be SMALLER than current cell value (with 1 wrapping to 5).', color: 'bg-orange-50 border-orange-200 text-orange-700' },
   { id: 'group-rule', name: 'Group Rule', description: 'Goats must end adjacent to another goat if possible. Tigers must end adjacent to a piece.', color: 'bg-teal-50 border-teal-200 text-teal-700' },
   { id: 'edge-safe', name: 'Edge Safe Mode', description: 'Goats occupying outer Edge or Corner cells are protected unless tiger is also on edge.', color: 'bg-cyan-50 border-cyan-200 text-cyan-700' },
   
@@ -39,7 +39,7 @@ function isDiagonalMove(from: string, to: string): boolean {
 }
 
 // Get the subset of rules matching the difficulty setting
-function getRulesForVersion(version: GameVersion): RuleCard[] {
+export function getRulesForVersion(version: GameVersion): RuleCard[] {
   if (version === 'beginner') {
     return RULE_DECK.slice(0, 4);
   } else if (version === 'standard') {
@@ -72,19 +72,18 @@ function compliesWithRule(
     case 'diagonal-only':
       return isDiagonalMove(from, to);
     case 'greater-move':
-      return toVal > fromVal;
+      return toVal > fromVal || (fromVal === 5 && toVal === 1);
     case 'smaller-move':
-      return toVal < fromVal;
+      return toVal < fromVal || (fromVal === 1 && toVal === 5);
     case 'group-rule':
       if (pieceType === 'goat') {
-        const goats = pieces.filter(p => p.type === 'goat' && p.position !== from);
+        const goats = pieces.filter(p => p.type === 'goat' && p.position !== from && p.position !== "");
         const adjacentExists = goats.some(g => getNeighbors(to, gridSize).includes(g.position));
         if (adjacentExists) {
-          // If possible, must end adjacent to another goat
           return goats.some(g => areAdjacent(to, g.position));
         }
       } else {
-        const otherPieces = pieces.filter(p => p.position !== from);
+        const otherPieces = pieces.filter(p => p.position !== from && p.position !== "");
         return otherPieces.some(p => areAdjacent(to, p.position));
       }
       return true;
@@ -146,8 +145,7 @@ interface LogicShieldInfo {
 }
 
 function getActiveShields(pieces: Piece[], version: GameVersion, ruleCardId: string, gridSize: number, cellNumbers: Record<string, number>): LogicShieldInfo[] {
-  const goats = pieces.filter(p => p.type === 'goat');
-  const goatPositions = goats.map(g => g.position);
+  const goats = pieces.filter(p => p.type === 'goat' && p.position !== "");
   const shields: LogicShieldInfo[] = [];
 
   if (ruleCardId === 'edge-safe') {
@@ -221,7 +219,9 @@ function getActiveShields(pieces: Piece[], version: GameVersion, ruleCardId: str
         if (areAdjacent(g1, g2)) {
           const v1 = cellNumbers[g1] || 1;
           const v2 = cellNumbers[g2] || 1;
-          const condition = isGreater ? v2 > v1 : v2 < v1;
+          const condition = isGreater
+            ? (v2 > v1 || (v1 === 5 && v2 === 1))
+            : (v2 < v1 || (v1 === 1 && v2 === 5));
           if (condition) {
             shields.push({ shieldType: 'pair', members: new Set([g1, g2]) });
           }
@@ -232,7 +232,6 @@ function getActiveShields(pieces: Piece[], version: GameVersion, ruleCardId: str
 
   // 4. Group Rule shield of 3 connected goats
   if (ruleCardId === 'group-rule') {
-    // Look for any connected triple of goats
     for (let i = 0; i < goats.length; i++) {
       for (let j = i + 1; j < goats.length; j++) {
         for (let k = j + 1; k < goats.length; k++) {
@@ -240,13 +239,88 @@ function getActiveShields(pieces: Piece[], version: GameVersion, ruleCardId: str
           const g2 = goats[j].position;
           const g3 = goats[k].position;
 
-          // Check connectivity
           const c12 = areAdjacent(g1, g2);
           const c23 = areAdjacent(g2, g3);
           const c13 = areAdjacent(g1, g3);
 
           if ((c12 && c23) || (c12 && c13) || (c23 && c13)) {
             shields.push({ shieldType: 'group', members: new Set([g1, g2, g3]) });
+          }
+        }
+      }
+    }
+  }
+
+  // 5. Mirror Symmetry shield
+  if (ruleCardId === 'mirror-rule') {
+    const centerIndex = Math.floor(gridSize / 2);
+    for (let i = 0; i < goats.length; i++) {
+      for (let j = i + 1; j < goats.length; j++) {
+        const g1 = goats[i].position;
+        const g2 = goats[j].position;
+        if (areAdjacent(g1, g2)) {
+          const v1 = cellNumbers[g1] || 1;
+          const v2 = cellNumbers[g2] || 1;
+          const cr1 = coordToColRow(g1);
+          const cr2 = coordToColRow(g2);
+          const isG1Center = cr1.col === centerIndex || cr1.row === centerIndex;
+          const isG2Center = cr2.col === centerIndex || cr2.row === centerIndex;
+          if (v1 === v2 || (isG1Center && isG2Center)) {
+            shields.push({ shieldType: 'pair', members: new Set([g1, g2]) });
+          }
+        }
+      }
+    }
+  }
+
+  // 6. Prime Path shield
+  if (ruleCardId === 'prime-path') {
+    const isPrime = (v: number) => v === 2 || v === 3 || v === 5;
+    for (let i = 0; i < goats.length; i++) {
+      for (let j = i + 1; j < goats.length; j++) {
+        const g1 = goats[i].position;
+        const g2 = goats[j].position;
+        if (areAdjacent(g1, g2)) {
+          const v1 = cellNumbers[g1] || 1;
+          const v2 = cellNumbers[g2] || 1;
+          if (isPrime(v1) && isPrime(v2)) {
+            shields.push({ shieldType: 'pair', members: new Set([g1, g2]) });
+          }
+        }
+      }
+    }
+  }
+
+  // 7. Multiple Check shield
+  if (ruleCardId === 'multiple-check') {
+    const isMultiple = (v: number) => v % 2 === 0 || v % 3 === 0;
+    for (let i = 0; i < goats.length; i++) {
+      for (let j = i + 1; j < goats.length; j++) {
+        const g1 = goats[i].position;
+        const g2 = goats[j].position;
+        if (areAdjacent(g1, g2)) {
+          const v1 = cellNumbers[g1] || 1;
+          const v2 = cellNumbers[g2] || 1;
+          if (isMultiple(v1) && isMultiple(v2)) {
+            shields.push({ shieldType: 'pair', members: new Set([g1, g2]) });
+          }
+        }
+      }
+    }
+  }
+
+  // 8. Parity Pattern shield
+  if (ruleCardId === 'pattern-rule') {
+    for (let i = 0; i < goats.length; i++) {
+      for (let j = i + 1; j < goats.length; j++) {
+        const g1 = goats[i].position;
+        const g2 = goats[j].position;
+        if (areAdjacent(g1, g2)) {
+          const v1 = cellNumbers[g1] || 1;
+          const v2 = cellNumbers[g2] || 1;
+          const parityDiff = (v1 % 2 === 0 && v2 % 2 !== 0) || (v1 % 2 !== 0 && v2 % 2 === 0);
+          if (parityDiff) {
+            shields.push({ shieldType: 'pair', members: new Set([g1, g2]) });
           }
         }
       }
@@ -299,7 +373,7 @@ export const logicLabLogic: GameLogicEngine = {
 
     const activeRulesDeck = getRulesForVersion(version);
     const activeRuleIdx = extraState.activeRuleIndex ?? 0;
-    const ruleCard = activeRulesDeck[activeRuleIdx];
+    const ruleCard = activeRulesDeck[activeRuleIdx % activeRulesDeck.length] || activeRulesDeck[0];
 
     // Find all active shields
     const activeShields = getActiveShields(pieces, version, ruleCard.id, preset.gridSize, preset.cellNumbers);
@@ -378,7 +452,8 @@ export const logicLabLogic: GameLogicEngine = {
     let captureStatus: 'none' | 'success' | 'blocked' = 'none';
 
     const activeRulesDeck = getRulesForVersion(version);
-    const ruleCard = activeRulesDeck[nextExtra.activeRuleIndex];
+    const activeIdx = nextExtra.activeRuleIndex ?? 0;
+    const ruleCard = activeRulesDeck[activeIdx % activeRulesDeck.length] || activeRulesDeck[0];
 
     // Check shields *before* moving to see if any are broken or if new ones form
     const prevShields = getActiveShields(pieces, version, ruleCard.id, preset.gridSize, preset.cellNumbers);
@@ -405,7 +480,7 @@ export const logicLabLogic: GameLogicEngine = {
 
     // Round cycle: New Logic Rule Card appears ONLY after TIGER turn completes!
     if (currentPlayer === 'tiger') {
-      const nextIdx = (nextExtra.activeRuleIndex + 1) % activeRulesDeck.length;
+      const nextIdx = (activeIdx + 1) % activeRulesDeck.length;
       nextExtra.activeRuleIndex = nextIdx;
       nextExtra.rulesCycleCount += 1;
 
@@ -433,7 +508,7 @@ export const logicLabLogic: GameLogicEngine = {
     const protectedCoords = new Set<string>();
     const activeRulesDeck = getRulesForVersion(version);
     const activeRuleIdx = extraState.activeRuleIndex ?? 0;
-    const ruleCard = activeRulesDeck[activeRuleIdx];
+    const ruleCard = activeRulesDeck[activeRuleIdx % activeRulesDeck.length] || activeRulesDeck[0];
 
     // Evaluate active shields
     const activeShields = getActiveShields(pieces, version, ruleCard.id, preset.gridSize, preset.cellNumbers);
@@ -480,7 +555,7 @@ export const logicLabLogic: GameLogicEngine = {
     else if (version === 'advanced') targetShields = 5;
 
     return {
-      title: 'Bagh-Bakri Logic Lab',
+      title: 'Bagh-Bakri Logic Lab with STEM Learning',
       studentGuide: [
         'Goal for Goat Team: Keep Goats safe by surviving or building logic shields aligned with active rule card!',
         'Goal for Tiger Team: Outmaneuver Goats by following and breaking logic shield conditions.',
@@ -518,8 +593,7 @@ export const logicLabLogic: GameLogicEngine = {
     discussionPrompt: 'Can you explain this active rule as an if-then sentence?',
   }),
 
-  getClassroomModeConfig: (turnNumber: number) => {
-    // Return placeholder classroom modes that match turn rules
+  getClassroomModeConfig: (_turnNumber: number) => {
     return {
       prompts: [
         'Read the active Logic Rule card. Which destination cells are currently valid?',

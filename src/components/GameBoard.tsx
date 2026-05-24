@@ -249,7 +249,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
           {/* Idea 10: Build-a-Board Gold Paths */}
           {ideaId === 10 && (() => {
-            const routes = findConnectedPaths(gridCells || {}, gridSize, pieces);
+            const routes = findConnectedPaths(gridCells || {}, gridSize, pieces, version || 'standard');
             return routes.map((route, index) => {
               return route.path.map((coord, i) => {
                 if (i === 0) return null;
@@ -292,6 +292,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 cellConfig={config}
                 satisfiesLogicRule={checkSatisfiesLogicRule(coordinate, number)}
                 energyCost={getEnergyCostForCell(coordinate)}
+                showCellNumber={[1, 2, 9].includes(ideaId || 0)}
               />
             );
           })}
